@@ -3,42 +3,75 @@ const ProfileManager = {
     STORAGE_KEY: 'gq_profiles',
     CURRENT_KEY: 'gq_current',
 
+    /* ===== LECTURE LOCALE ===== */
     getAll() {
         try {
             const data = localStorage.getItem(this.STORAGE_KEY);
             if (!data) return [];
             const profiles = JSON.parse(data);
-            // Migration : ajouter unlockedLevelsFr/En si absents (anciens profils)
             let needsSave = false;
             profiles.forEach(p => {
-                if (!p.unlockedLevelsFr) {
-                    p.unlockedLevelsFr = [...(p.unlockedLevels || [1])];
-                    needsSave = true;
-                }
-                if (!p.unlockedLevelsEn) {
-                    p.unlockedLevelsEn = [...(p.unlockedLevels || [1])];
-                    needsSave = true;
-                }
+                if (!p.unlockedLevelsFr) { p.unlockedLevelsFr = [...(p.unlockedLevels || [1])]; needsSave = true; }
+                if (!p.unlockedLevelsEn) { p.unlockedLevelsEn = [...(p.unlockedLevels || [1])]; needsSave = true; }
+                if (!p.deviceId) { p.deviceId = getDeviceId(); needsSave = true; }
             });
-            if (needsSave) this.save(profiles);
+            if (needsSave) this._saveLocal(profiles);
             return profiles;
-        } catch(e) {
-            return [];
-        }
+        } catch(e) { return []; }
     },
 
-    save(profiles) {
+    _saveLocal(profiles) {
+        try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(profiles)); } catch(e) {}
+    },
+
+    /* ===== SYNC CLOUD ===== */
+    _pushToCloud(profile) {
         try {
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(profiles));
+            db.collection('profiles').doc(String(profile.id)).set(profile);
         } catch(e) {}
     },
 
+    _deleteFromCloud(id) {
+        try {
+            db.collection('profiles').doc(String(id)).delete();
+        } catch(e) {}
+    },
+
+    // Appelé au démarrage : importe depuis Firestore les profils de cet appareil
+    syncFromCloud(onDone) {
+        const deviceId = getDeviceId();
+        try {
+            db.collection('profiles')
+              .where('deviceId', '==', deviceId)
+              .get()
+              .then(snapshot => {
+                  if (snapshot.empty) { if (onDone) onDone(); return; }
+                  const cloudProfiles = snapshot.docs.map(d => d.data());
+                  const local = this.getAll();
+                  // Fusionner : cloud prioritaire sur local si même id
+                  const merged = [...local];
+                  cloudProfiles.forEach(cp => {
+                      const idx = merged.findIndex(p => p.id === cp.id);
+                      if (idx >= 0) merged[idx] = cp;
+                      else merged.push(cp);
+                  });
+                  // Garder max 3
+                  const trimmed = merged.slice(0, this.MAX_PROFILES);
+                  this._saveLocal(trimmed);
+                  if (onDone) onDone();
+              })
+              .catch(() => { if (onDone) onDone(); });
+        } catch(e) { if (onDone) onDone(); }
+    },
+
+    /* ===== CRUD ===== */
     create(profile) {
         const profiles = this.getAll();
         if (profiles.length >= this.MAX_PROFILES) return false;
 
         const newProfile = {
             id: Date.now(),
+            deviceId: getDeviceId(),
             name: profile.name,
             age: parseInt(profile.age),
             lang: profile.lang,
@@ -51,7 +84,8 @@ const ProfileManager = {
         };
 
         profiles.push(newProfile);
-        this.save(profiles);
+        this._saveLocal(profiles);
+        this._pushToCloud(newProfile);
         return newProfile;
     },
 
@@ -60,14 +94,16 @@ const ProfileManager = {
         const idx = profiles.findIndex(p => p.id === id);
         if (idx === -1) return null;
         profiles[idx] = { ...profiles[idx], ...updates };
-        this.save(profiles);
+        this._saveLocal(profiles);
+        this._pushToCloud(profiles[idx]);
         return profiles[idx];
     },
 
     delete(id) {
         let profiles = this.getAll();
         profiles = profiles.filter(p => p.id !== id);
-        this.save(profiles);
+        this._saveLocal(profiles);
+        this._deleteFromCloud(id);
     },
 
     getCurrent() {
@@ -100,7 +136,6 @@ const ProfileManager = {
         if (stars > prog.stars) prog.stars = stars;
         profile.totalScore += score;
 
-        // Débloquer le niveau suivant dans la bonne langue
         const nextLevel = levelId + 1;
         if (nextLevel <= 25) {
             const key = lang === 'en' ? 'unlockedLevelsEn' : 'unlockedLevelsFr';
