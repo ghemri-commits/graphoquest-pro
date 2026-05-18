@@ -15,42 +15,58 @@ const ParentPortal = {
 
     checkPin(input) { return input === this.getPin(); },
 
-    /* ===== PROGRESSION ===== */
+    /* ===== PROGRESSION — tous appareils via Firestore ===== */
     renderProgress() {
         const container = document.getElementById('parent-progress-list');
-        const profiles = ProfileManager.getAll();
+        container.innerHTML = '<p style="text-align:center;color:#666;padding:20px">⏳ Chargement...</p>';
 
-        if (profiles.length === 0) {
-            container.innerHTML = '<p style="text-align:center;color:#666;padding:20px">Aucun profil enregistré</p>';
-            return;
+        try {
+            db.collection('profiles').onSnapshot(snapshot => {
+                if (snapshot.empty) {
+                    container.innerHTML = '<p style="text-align:center;color:#666;padding:20px">Aucun profil enregistré</p>';
+                    return;
+                }
+                const profiles = snapshot.docs.map(d => d.data());
+                profiles.sort((a, b) => a.name.localeCompare(b.name));
+                container.innerHTML = profiles.map(p => {
+                    const completed = Object.keys(p.progress || {}).length;
+                    const percent = Math.round((completed / 25) * 100);
+                    const lastKey = Object.keys(p.progress || {}).pop();
+                    const totalAttempts = Object.values(p.progress || {}).reduce((a,b) => a + (b.attempts||0), 0);
+                    const totalStars = Object.values(p.progress || {}).reduce((a,b) => a + (b.stars||0), 0);
+                    return `
+                        <div class="progress-item">
+                            <div class="progress-item-header">
+                                <span class="progress-item-name">${p.avatar} ${p.name} (${p.age} ans)</span>
+                                <span>⭐ ${p.totalScore || 0}</span>
+                            </div>
+                            <div class="progress-item-stats">
+                                <span>🎯 ${completed}/25 niveaux</span>
+                                <span>🔥 ${totalAttempts} essais</span>
+                                <span>🏆 ${totalStars} étoiles</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width:${percent}%"></div>
+                            </div>
+                            <p style="margin-top:8px;font-size:14px;color:#666">
+                                Dernier niveau : ${lastKey ? 'Niveau ' + lastKey : 'Aucun'}
+                            </p>
+                        </div>
+                    `;
+                }).join('');
+            }, () => {
+                // Fallback local si Firestore inaccessible
+                const local = ProfileManager.getAll();
+                if (!local.length) { container.innerHTML = '<p style="text-align:center;color:#666;padding:20px">Aucun profil (hors ligne)</p>'; return; }
+                container.innerHTML = local.map(p => {
+                    const completed = Object.keys(p.progress||{}).length;
+                    const percent = Math.round((completed/25)*100);
+                    return `<div class="progress-item"><div class="progress-item-header"><span class="progress-item-name">${p.avatar} ${p.name} (${p.age} ans)</span><span>⭐ ${p.totalScore||0}</span></div><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${percent}%"></div></div></div>`;
+                }).join('');
+            });
+        } catch(e) {
+            container.innerHTML = '<p style="text-align:center;color:#ef4444;padding:20px">Erreur de connexion Firestore</p>';
         }
-
-        container.innerHTML = profiles.map(p => {
-            const totalLevels = 25;
-            const completed = Object.keys(p.progress).length;
-            const percent = Math.round((completed / totalLevels) * 100);
-            const lastKey = Object.keys(p.progress).pop();
-
-            return `
-                <div class="progress-item">
-                    <div class="progress-item-header">
-                        <span class="progress-item-name">${p.avatar} ${p.name} (${p.age} ans)</span>
-                        <span>⭐ ${p.totalScore}</span>
-                    </div>
-                    <div class="progress-item-stats">
-                        <span>🎯 ${completed}/${totalLevels} niveaux</span>
-                        <span>🔥 ${Object.values(p.progress).reduce((a,b) => a + b.attempts, 0)} essais</span>
-                        <span>🏆 ${Object.values(p.progress).reduce((a,b) => a + b.stars, 0)} étoiles</span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" style="width:${percent}%"></div>
-                    </div>
-                    <p style="margin-top:8px;font-size:14px;color:#666">
-                        Dernier niveau : ${lastKey ? 'Niveau ' + lastKey : 'Aucun'}
-                    </p>
-                </div>
-            `;
-        }).join('');
     },
 
     /* ===== GESTIONNAIRE DE NIVEAUX ===== */
