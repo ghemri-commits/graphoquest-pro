@@ -5,8 +5,11 @@ function showScreen(screenId) {
 
 window.onload = () => {
     setTimeout(() => {
-        showScreen('profile-screen');
-        renderProfiles();
+        // Sync depuis Firestore, puis afficher
+        ProfileManager.syncFromCloud(() => {
+            showScreen('profile-screen');
+            renderProfiles();
+        });
     }, 1500);
 };
 
