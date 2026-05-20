@@ -190,10 +190,14 @@ function launchLevel(levelId) {
 
 function launchGame(gameType) {
     const profile = ProfileManager.getCurrent();
-    const data = getGameData(profile.lang === 'both' ? 'fr' : profile.lang);
+    const lang = profile.lang === 'both' ? 'fr' : profile.lang;
+    const data = getGameData(lang);
+    const unlockedLevels = lang === 'en'
+        ? (profile.unlockedLevelsEn || [1])
+        : (profile.unlockedLevelsFr || [1]);
 
     const level = data.levels.find(l =>
-        l.miniGame === gameType && profile.unlockedLevels.includes(l.id)
+        l.miniGame === gameType && unlockedLevels.includes(l.id)
     );
 
     if (level) {
