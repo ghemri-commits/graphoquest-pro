@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <clipPath id="clip">
+      <rect width="192" height="192" rx="40" ry="40"/>
+    </clipPath>
+  </defs>
+
+  <!-- Fond dégradé violet -->
+  <rect width="192" height="192" rx="40" fill="url(#g)"/>
+
+  <!-- Cerveau stylisé en blanc -->
+  <g clip-path="url(#clip)" fill="none" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Hémisphère gauche -->
+    <path d="M96 55
+             C96 55 72 50 60 62
+             C48 74 44 90 48 104
+             C52 118 64 126 74 128
+             C82 130 90 128 96 126"/>
+    <!-- Hémisphère droit -->
+    <path d="M96 55
+             C96 55 120 50 132 62
+             C144 74 148 90 144 104
+             C140 118 128 126 118 128
+             C110 130 102 128 96 126"/>
+    <!-- Bosse gauche supérieure -->
+    <path d="M68 62 C64 52 78 44 86 50"/>
+    <!-- Bosse droite supérieure -->
+    <path d="M124 62 C128 52 114 44 106 50"/>
+    <!-- Fissure centrale -->
+    <line x1="96" y1="55" x2="96" y2="126" stroke-width="6" stroke-dasharray="0"/>
+    <!-- Sillons gauches -->
+    <path d="M58 80 C66 84 70 82 74 86" stroke-width="5"/>
+    <path d="M52 96 C60 99 66 98 72 102" stroke-width="5"/>
+    <!-- Sillons droits -->
+    <path d="M134 80 C126 84 122 82 118 86" stroke-width="5"/>
+    <path d="M140 96 C132 99 126 98 120 102" stroke-width="5"/>
+    <!-- Tronc cérébral -->
+    <path d="M82 128 C82 140 88 148 96 150 C104 148 110 140 110 128"/>
+  </g>
+
+  <!-- Point lumineux en haut à gauche (effet brillance) -->
+  <circle cx="56" cy="44" r="18" fill="white" opacity="0.12"/>
+</svg>
