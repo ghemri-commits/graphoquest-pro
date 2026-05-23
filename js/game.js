@@ -401,13 +401,21 @@ const GameEngine = {
     },
 
     speak(text) {
-        if (!window.speechSynthesis) return;
-        // Cancel any pending speech before queuing a new one
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = this.currentProfile.lang === 'en' ? 'en-GB' : 'fr-FR';
-        utter.rate = 0.8;
-        window.speechSynthesis.speak(utter);
+        const synth = window.speechSynthesis;
+        if (!synth) return;
+
+        // iOS Safari : le synthétiseur se bloque après inactivité → resume() le réveille
+        if (synth.paused) synth.resume();
+        synth.cancel();
+
+        // iOS Safari : cancel() + speak() immédiat échoue silencieusement
+        // 50ms suffisent à stabiliser l'engine audio
+        setTimeout(() => {
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = this.currentProfile?.lang === 'en' ? 'en-GB' : 'fr-FR';
+            utter.rate = 0.8;
+            synth.speak(utter);
+        }, 50);
     },
 
     createParticles(element) {
