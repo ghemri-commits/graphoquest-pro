@@ -12,6 +12,8 @@ const GameEngine = {
     currentSyllableIndex: 0,
     correctFirstTry: 0,
     itemHasError: false,
+    errorItems: [],      // items avec erreur dans ce niveau → révision espacée
+    reviewRound: false,  // true pendant le round de révision
 
     init(profile, levelId, gameType) {
         this.currentProfile = profile;
@@ -26,6 +28,8 @@ const GameEngine = {
         this.isProcessing = false;
         this.correctFirstTry = 0;
         this.itemHasError = false;
+        this.errorItems = [];
+        this.reviewRound = false;
         this.render();
     },
 
@@ -92,10 +96,13 @@ const GameEngine = {
         area.appendChild(wordDiv);
 
         const audioBtn = document.createElement('button');
-        audioBtn.className = 'btn-icon';
-        audioBtn.style.cssText = 'width:70px;height:70px;font-size:32px;margin-bottom:20px;';
+        audioBtn.className = 'btn-audio';
+        audioBtn.style.marginBottom = '20px';
         audioBtn.textContent = '🔊';
-        audioBtn.onclick = () => this.speak(item.hint || item.target);
+        audioBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.speak(item.hint || item.target);
+        });
         area.appendChild(audioBtn);
 
         const choicesDiv = document.createElement('div');
@@ -106,7 +113,11 @@ const GameEngine = {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt;
-            btn.onclick = () => this.handleCompleteChoice(opt, btn);
+            // pointerdown pour réponse immédiate dès le contact du doigt
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this.handleCompleteChoice(opt, btn);
+            });
             choicesDiv.appendChild(btn);
         });
         area.appendChild(choicesDiv);
@@ -171,10 +182,12 @@ const GameEngine = {
         container.appendChild(target);
 
         const audioBtn = document.createElement('button');
-        audioBtn.className = 'btn-icon';
-        audioBtn.style.cssText = 'width:70px;height:70px;font-size:32px;';
+        audioBtn.className = 'btn-audio';
         audioBtn.textContent = '🔊';
-        audioBtn.onclick = () => this.speak(item.sound || item.correct);
+        audioBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.speak(item.sound || item.correct);
+        });
         container.appendChild(audioBtn);
 
         const optionsDiv = document.createElement('div');
@@ -184,8 +197,14 @@ const GameEngine = {
         shuffled.forEach(opt => {
             const card = document.createElement('button');
             card.className = 'match-card';
-            card.innerHTML = `<div class="match-word">${opt}</div>`;
-            card.onclick = () => this.handleMatchChoice(opt, card, item.correct);
+            const wordDiv = document.createElement('div');
+            wordDiv.className = 'match-word';
+            wordDiv.textContent = opt; // textContent pour sécurité
+            card.appendChild(wordDiv);
+            card.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this.handleMatchChoice(opt, card, item.correct);
+            });
             optionsDiv.appendChild(card);
         });
         container.appendChild(optionsDiv);
@@ -241,10 +260,12 @@ const GameEngine = {
         container.appendChild(wordDiv);
 
         const audioBtn = document.createElement('button');
-        audioBtn.className = 'btn-icon';
-        audioBtn.style.cssText = 'width:60px;height:60px;font-size:28px;';
+        audioBtn.className = 'btn-audio';
         audioBtn.textContent = '🔊';
-        audioBtn.onclick = () => this.speak(item.word);
+        audioBtn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.speak(item.word);
+        });
         container.appendChild(audioBtn);
 
         const partsDiv = document.createElement('div');
@@ -258,7 +279,10 @@ const GameEngine = {
             const btn = document.createElement('button');
             btn.className = 'syllable-btn';
             btn.textContent = part;
-            btn.onclick = () => this.handleSyllableChoice(part, btn);
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this.handleSyllableChoice(part, btn);
+            });
             partsDiv.appendChild(btn);
         });
         container.appendChild(partsDiv);
@@ -310,14 +334,49 @@ const GameEngine = {
     },
 
     nextItem() {
+        // Capturer l'item actuel avant incrémentation (itemHasError sera remis à false par render())
+        const currentItem = this.currentLevel.items[this.currentItemIndex];
+        if (this.itemHasError && currentItem) {
+            this.errorItems.push(currentItem);
+        }
+
         this.currentItemIndex++;
         this.isProcessing = false;
 
         if (this.currentItemIndex >= this.currentLevel.items.length) {
-            this.endLevel();
+            // Répétition espacée : si erreurs et pas encore en round de révision, relancer les difficiles
+            if (this.errorItems.length > 0 && !this.reviewRound) {
+                this._startReviewRound();
+            } else {
+                this.endLevel();
+            }
         } else {
             this.render();
         }
+    },
+
+    _startReviewRound() {
+        this.reviewRound = true;
+        const reviewItems = [...this.errorItems];
+        this.errorItems = [];
+        this.currentLevel = { ...this.currentLevel, items: reviewItems };
+        this.currentItemIndex = 0;
+        this.itemHasError = false;
+
+        const area = document.getElementById('game-area');
+        area.className = '';
+        area.innerHTML = '';
+
+        const banner = document.createElement('div');
+        banner.style.cssText = 'text-align:center;animation:pop 0.5s;padding:40px';
+        banner.innerHTML = `
+            <div style="font-size:80px;margin-bottom:16px">🔁</div>
+            <h2 style="font-size:28px;margin-bottom:8px">Révision des difficultés !</h2>
+            <p style="font-size:18px;color:#64748b">On réessaie les lettres difficiles</p>
+        `;
+        area.appendChild(banner);
+
+        setTimeout(() => this.render(), 1800);
     },
 
     endLevel() {

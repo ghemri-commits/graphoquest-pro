@@ -6,6 +6,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>GraphoQuest Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -128,6 +131,7 @@
                     <!-- Fix: pass 'this' to avoid relying on deprecated global event.target -->
                     <button class="tab-btn active" onclick="showParentTab('progress', this)">📊 Progression</button>
                     <button class="tab-btn" onclick="showParentTab('levels', this)">🔐 Niveaux</button>
+                    <button class="tab-btn" onclick="showParentTab('profiles', this)">👤 Profils</button>
                     <button class="tab-btn" onclick="showParentTab('settings', this)">⚙️ Réglages</button>
                 </div>
 
@@ -143,6 +147,13 @@
                     <div id="level-manager">
                         <p style="color:#666;padding:10px 0">Sélectionne un profil</p>
                     </div>
+                </div>
+
+                <div id="tab-profiles" class="tab-content">
+                    <h3 style="margin-bottom:12px">Gestion des profils enfants</h3>
+                    <p style="margin-bottom:20px;color:#64748b;font-size:15px">La suppression est protégée ici, hors de portée des enfants.</p>
+                    <div id="parent-profile-list"></div>
+                    <div id="parent-delete-confirm-zone" class="hidden" style="margin-top:16px;background:#fef2f2;border-radius:16px;padding:24px;text-align:center"></div>
                 </div>
 
                 <div id="tab-settings" class="tab-content">

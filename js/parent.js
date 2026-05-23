@@ -1,3 +1,10 @@
+/* Utilitaire d'échappement HTML pour les données saisies par l'utilisateur */
+function safeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+
 const ParentPortal = {
     PIN_KEY: 'gq_parent_pin',
     DEFAULT_PIN: '1234',
@@ -28,41 +35,86 @@ const ParentPortal = {
                 }
                 const profiles = snapshot.docs.map(d => d.data());
                 profiles.sort((a, b) => a.name.localeCompare(b.name));
-                container.innerHTML = profiles.map(p => {
+                container.innerHTML = '';
+                profiles.forEach(p => {
                     const completed = Object.keys(p.progress || {}).length;
                     const percent = Math.round((completed / 25) * 100);
                     const lastKey = Object.keys(p.progress || {}).pop();
                     const totalAttempts = Object.values(p.progress || {}).reduce((a,b) => a + (b.attempts||0), 0);
                     const totalStars = Object.values(p.progress || {}).reduce((a,b) => a + (b.stars||0), 0);
-                    return `
-                        <div class="progress-item">
-                            <div class="progress-item-header">
-                                <span class="progress-item-name">${p.avatar} ${p.name} (${p.age} ans)</span>
-                                <span>⭐ ${p.totalScore || 0}</span>
-                            </div>
-                            <div class="progress-item-stats">
-                                <span>🎯 ${completed}/25 niveaux</span>
-                                <span>🔥 ${totalAttempts} essais</span>
-                                <span>🏆 ${totalStars} étoiles</span>
-                            </div>
-                            <div class="progress-bar-bg">
-                                <div class="progress-bar-fill" style="width:${percent}%"></div>
-                            </div>
-                            <p style="margin-top:8px;font-size:14px;color:#666">
-                                Dernier niveau : ${lastKey ? 'Niveau ' + lastKey : 'Aucun'}
-                            </p>
-                        </div>
-                    `;
-                }).join('');
+
+                    const item = document.createElement('div');
+                    item.className = 'progress-item';
+
+                    const header = document.createElement('div');
+                    header.className = 'progress-item-header';
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'progress-item-name';
+                    nameSpan.textContent = `${p.avatar} ${p.name} (${p.age} ans)`;
+
+                    const scoreSpan = document.createElement('span');
+                    scoreSpan.textContent = `⭐ ${p.totalScore || 0}`;
+
+                    header.appendChild(nameSpan);
+                    header.appendChild(scoreSpan);
+
+                    const stats = document.createElement('div');
+                    stats.className = 'progress-item-stats';
+                    stats.innerHTML = `<span>🎯 ${completed}/25 niveaux</span><span>🔥 ${totalAttempts} essais</span><span>🏆 ${totalStars} étoiles</span>`;
+
+                    const barBg = document.createElement('div');
+                    barBg.className = 'progress-bar-bg';
+                    const barFill = document.createElement('div');
+                    barFill.className = 'progress-bar-fill';
+                    barFill.style.width = `${percent}%`;
+                    barBg.appendChild(barFill);
+
+                    const lastP = document.createElement('p');
+                    lastP.style.cssText = 'margin-top:8px;font-size:14px;color:#666';
+                    lastP.textContent = `Dernier niveau : ${lastKey ? 'Niveau ' + lastKey : 'Aucun'}`;
+
+                    item.appendChild(header);
+                    item.appendChild(stats);
+                    item.appendChild(barBg);
+                    item.appendChild(lastP);
+                    container.appendChild(item);
+                });
             }, () => {
                 // Fallback local si Firestore inaccessible
                 const local = ProfileManager.getAll();
-                if (!local.length) { container.innerHTML = '<p style="text-align:center;color:#666;padding:20px">Aucun profil (hors ligne)</p>'; return; }
-                container.innerHTML = local.map(p => {
+                container.innerHTML = '';
+                if (!local.length) {
+                    const msg = document.createElement('p');
+                    msg.style.cssText = 'text-align:center;color:#666;padding:20px';
+                    msg.textContent = 'Aucun profil (hors ligne)';
+                    container.appendChild(msg);
+                    return;
+                }
+                local.forEach(p => {
                     const completed = Object.keys(p.progress||{}).length;
                     const percent = Math.round((completed/25)*100);
-                    return `<div class="progress-item"><div class="progress-item-header"><span class="progress-item-name">${p.avatar} ${p.name} (${p.age} ans)</span><span>⭐ ${p.totalScore||0}</span></div><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${percent}%"></div></div></div>`;
-                }).join('');
+                    const item = document.createElement('div');
+                    item.className = 'progress-item';
+                    const header = document.createElement('div');
+                    header.className = 'progress-item-header';
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'progress-item-name';
+                    nameSpan.textContent = `${p.avatar} ${p.name} (${p.age} ans)`;
+                    const scoreSpan = document.createElement('span');
+                    scoreSpan.textContent = `⭐ ${p.totalScore||0}`;
+                    header.appendChild(nameSpan);
+                    header.appendChild(scoreSpan);
+                    const barBg = document.createElement('div');
+                    barBg.className = 'progress-bar-bg';
+                    const barFill = document.createElement('div');
+                    barFill.className = 'progress-bar-fill';
+                    barFill.style.width = `${percent}%`;
+                    barBg.appendChild(barFill);
+                    item.appendChild(header);
+                    item.appendChild(barBg);
+                    container.appendChild(item);
+                });
             });
         } catch(e) {
             container.innerHTML = '<p style="text-align:center;color:#ef4444;padding:20px">Erreur de connexion Firestore</p>';
@@ -165,11 +217,109 @@ const ParentPortal = {
     populateProfileSelect() {
         const select = document.getElementById('parent-profile-select');
         const profiles = ProfileManager.getAll();
-        select.innerHTML = '<option value="">-- Choisir un profil --</option>' +
-            profiles.map(p => `<option value="${p.id}">${p.avatar} ${p.name}</option>`).join('');
-        // Remettre à zéro le gestionnaire
+        select.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '-- Choisir un profil --';
+        select.appendChild(placeholder);
+
+        profiles.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.avatar} ${p.name}`; // textContent échappe le HTML
+            select.appendChild(opt);
+        });
+
         const container = document.getElementById('level-manager');
-        container.innerHTML = '<p style="color:#666;padding:10px 0">Sélectionne un profil</p>';
+        container.innerHTML = '';
+        const msg = document.createElement('p');
+        msg.style.cssText = 'color:#666;padding:10px 0';
+        msg.textContent = 'Sélectionne un profil';
+        container.appendChild(msg);
+    },
+
+    /* ===== GESTION DES PROFILS (onglet protégé par PIN) ===== */
+    renderProfileManager() {
+        const container = document.getElementById('parent-profile-list');
+        container.innerHTML = '';
+        const profiles = ProfileManager.getAll();
+
+        if (!profiles.length) {
+            const msg = document.createElement('p');
+            msg.style.cssText = 'text-align:center;color:#666;padding:20px';
+            msg.textContent = 'Aucun profil créé';
+            container.appendChild(msg);
+            return;
+        }
+
+        profiles.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'parent-profile-item';
+
+            const info = document.createElement('div');
+            info.className = 'parent-profile-info';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'parent-profile-name';
+            nameDiv.textContent = `${p.avatar} ${p.name}`;
+
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'parent-profile-meta';
+            metaDiv.textContent = `${p.age} ans · ${Object.keys(p.progress||{}).length}/25 niveaux · ⭐ ${p.totalScore||0}`;
+
+            info.appendChild(nameDiv);
+            info.appendChild(metaDiv);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-danger';
+            deleteBtn.style.cssText = 'font-size:16px;padding:12px 20px;white-space:nowrap;flex-shrink:0';
+            deleteBtn.textContent = '🗑️ Supprimer';
+            deleteBtn.onclick = () => this._confirmDeleteProfile(p.id, p.name);
+
+            item.appendChild(info);
+            item.appendChild(deleteBtn);
+            container.appendChild(item);
+        });
+    },
+
+    _confirmDeleteProfile(id, name) {
+        const zone = document.getElementById('parent-delete-confirm-zone');
+        zone.innerHTML = '';
+        zone.classList.remove('hidden');
+
+        const msg = document.createElement('p');
+        msg.style.cssText = 'font-weight:700;color:#ef4444;margin-bottom:16px;font-size:17px';
+        msg.textContent = `Supprimer "${name}" ? Toute la progression sera définitivement perdue.`;
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center';
+
+        const yesBtn = document.createElement('button');
+        yesBtn.className = 'btn-danger';
+        yesBtn.textContent = '🗑️ Oui, supprimer';
+        yesBtn.onclick = () => {
+            // Nettoyer le profil courant si c'est lui qui est supprimé
+            const current = ProfileManager.getCurrent();
+            if (current && current.id === id) ProfileManager.clearCurrent();
+            ProfileManager.delete(id);
+            zone.innerHTML = '';
+            zone.classList.add('hidden');
+            this.renderProfileManager();
+        };
+
+        const noBtn = document.createElement('button');
+        noBtn.className = 'btn-secondary';
+        noBtn.textContent = 'Annuler';
+        noBtn.onclick = () => {
+            zone.innerHTML = '';
+            zone.classList.add('hidden');
+        };
+
+        btnRow.appendChild(yesBtn);
+        btnRow.appendChild(noBtn);
+        zone.appendChild(msg);
+        zone.appendChild(btnRow);
     }
 };
 
@@ -220,6 +370,7 @@ function showParentTab(tabName, btn) {
     document.getElementById(`tab-${tabName}`).classList.add('active');
     if (tabName === 'levels') ParentPortal.populateProfileSelect();
     if (tabName === 'progress') ParentPortal.renderProgress();
+    if (tabName === 'profiles') ParentPortal.renderProfileManager();
 }
 
 /* Fonction globale appelée par onchange dans le HTML */

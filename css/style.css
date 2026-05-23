@@ -5,7 +5,8 @@
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Andika', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
 }
 
 :root {
@@ -124,17 +125,40 @@ html, body {
 }
 
 .btn-icon {
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     border: none;
     background: var(--card);
     box-shadow: var(--shadow);
-    font-size: 20px;
+    font-size: 24px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Bouton audio dédié aux mini-jeux — massif et coloré */
+.btn-audio {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary);
+    color: white;
+    font-size: 36px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.btn-audio:active {
+    transform: scale(0.9);
+    background: var(--primary-dark);
 }
 
 .btn-group {
@@ -229,8 +253,8 @@ html, body {
 }
 
 .avatar-option {
-    width: 60px;
-    height: 60px;
+    width: 64px;
+    height: 64px;
     font-size: 36px;
     border-radius: 16px;
     border: 3px solid var(--border);
@@ -732,6 +756,8 @@ input:focus, select:focus {
     padding: 30px 20px;
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
 }
 
 .pin-display {
@@ -1162,79 +1188,41 @@ input:focus, select:focus {
     }
 }
 
-/* ===== CONFIRMATION SUPPRESSION INLINE ===== */
+/* ===== PROFILS — écran enfant (lecture seule, pas de suppression) ===== */
 
-/* Le bouton × classique — visible au hover desktop, géré par JS sur touch */
-.profile-delete {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--danger);
-    color: white;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 2;
-}
+/* La suppression est exclusivement dans le portail parent protégé par PIN */
+.profile-delete { display: none !important; }
 
-.profile-card:hover .profile-delete {
+/* ===== PORTAIL PARENT — gestion des profils ===== */
+.parent-profile-item {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
     display: flex;
-}
-
-/* Sur touch : toujours visible mais petit et discret */
-@media (hover: none) {
-    .profile-delete {
-        display: flex;
-        width: 26px;
-        height: 26px;
-        font-size: 14px;
-        opacity: 0.6;
-    }
-}
-
-/* Zone de confirmation inline */
-.delete-confirm {
-    position: absolute;
-    inset: 0;
-    background: rgba(239,68,68,0.93);
-    border-radius: 21px;
-    display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    gap: 10px;
-    z-index: 3;
+    gap: 16px;
 }
 
-.delete-confirm span {
-    color: white;
-    font-size: 17px;
+.parent-profile-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.parent-profile-name {
+    font-size: 20px;
     font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.btn-confirm-yes, .btn-confirm-no {
-    padding: 8px 22px;
-    border-radius: 12px;
-    border: none;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.btn-confirm-yes {
-    background: white;
-    color: var(--danger);
-}
-
-.btn-confirm-no {
-    background: rgba(255,255,255,0.25);
-    color: white;
+.parent-profile-meta {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-top: 2px;
 }
 
 /* ===== GESTIONNAIRE DE NIVEAUX FR/EN ===== */

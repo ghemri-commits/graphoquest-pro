@@ -27,44 +27,45 @@ function renderProfiles() {
 
         if (p) {
             card.className = 'profile-card';
-            card.innerHTML = `
-                <div class="profile-avatar">${p.avatar}</div>
-                <div class="profile-name">${p.name}</div>
-                <div class="profile-meta">${p.age} ans · ${p.lang === 'fr' ? '🇫🇷' : p.lang === 'en' ? '🇬🇧' : '🌍'}</div>
-                <div class="profile-meta">⭐ ${p.totalScore} · 🎯 ${Object.keys(p.progress).length}</div>
-                <button class="profile-delete" data-id="${p.id}" aria-label="Supprimer">×</button>
-                <div class="delete-confirm hidden">
-                    <span>Supprimer ?</span>
-                    <button class="btn-confirm-yes" data-id="${p.id}">Oui</button>
-                    <button class="btn-confirm-no">Non</button>
-                </div>
-            `;
-            card.onclick = (e) => {
-                if (e.target.closest('.profile-delete') || e.target.closest('.delete-confirm')) return;
-                selectProfile(p.id);
-            };
-            card.querySelector('.profile-delete').addEventListener('click', (e) => {
-                e.stopPropagation();
-                card.querySelector('.delete-confirm').classList.remove('hidden');
-                card.querySelector('.profile-delete').classList.add('hidden');
-            });
-            card.querySelector('.btn-confirm-yes').addEventListener('click', (e) => {
-                e.stopPropagation();
-                ProfileManager.delete(p.id);
-                renderProfiles();
-            });
-            card.querySelector('.btn-confirm-no').addEventListener('click', (e) => {
-                e.stopPropagation();
-                card.querySelector('.delete-confirm').classList.add('hidden');
-                card.querySelector('.profile-delete').classList.remove('hidden');
-            });
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'profile-avatar';
+            avatarDiv.textContent = p.avatar;
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'profile-name';
+            nameDiv.textContent = p.name; // textContent échappe automatiquement le HTML
+
+            const langFlag = p.lang === 'fr' ? '🇫🇷' : p.lang === 'en' ? '🇬🇧' : '🌍';
+            const metaDiv1 = document.createElement('div');
+            metaDiv1.className = 'profile-meta';
+            metaDiv1.textContent = `${p.age} ans · ${langFlag}`;
+
+            const metaDiv2 = document.createElement('div');
+            metaDiv2.className = 'profile-meta';
+            metaDiv2.textContent = `⭐ ${p.totalScore} · 🎯 ${Object.keys(p.progress).length}`;
+
+            card.appendChild(avatarDiv);
+            card.appendChild(nameDiv);
+            card.appendChild(metaDiv1);
+            card.appendChild(metaDiv2);
+
+            // Sélection du profil uniquement — la suppression est dans le portail parent
+            card.onclick = () => selectProfile(p.id);
 
         } else {
             card.className = 'profile-card add-profile';
-            card.innerHTML = `
-                <div class="profile-avatar">➕</div>
-                <div class="profile-name">Ajouter</div>
-            `;
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'profile-avatar';
+            avatarDiv.textContent = '➕';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'profile-name';
+            nameDiv.textContent = 'Ajouter';
+
+            card.appendChild(avatarDiv);
+            card.appendChild(nameDiv);
             card.onclick = showEditProfile;
         }
 
@@ -230,5 +231,8 @@ function showParentLogin() {
 /* ===== SECURITE TACTILE ===== */
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('touchmove', e => {
-    if (e.scale !== 1) e.preventDefault();
+    // Permettre le défilement naturel dans le portail parent (contenu long)
+    if (e.target.closest('#parent-screen')) return;
+    // Bloquer tout défilement parasite en dehors du portail parent
+    e.preventDefault();
 }, { passive: false });
