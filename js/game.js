@@ -99,10 +99,7 @@ const GameEngine = {
         audioBtn.className = 'btn-audio';
         audioBtn.style.marginBottom = '20px';
         audioBtn.textContent = '🔊';
-        audioBtn.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            this.speak(item.hint || item.target);
-        });
+        audioBtn.onclick = () => this.speak(item.hint || item.target);
         area.appendChild(audioBtn);
 
         const choicesDiv = document.createElement('div');
@@ -113,11 +110,7 @@ const GameEngine = {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt;
-            // pointerdown pour réponse immédiate dès le contact du doigt
-            btn.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                this.handleCompleteChoice(opt, btn);
-            });
+            btn.onclick = () => this.handleCompleteChoice(opt, btn);
             choicesDiv.appendChild(btn);
         });
         area.appendChild(choicesDiv);
@@ -184,10 +177,7 @@ const GameEngine = {
         const audioBtn = document.createElement('button');
         audioBtn.className = 'btn-audio';
         audioBtn.textContent = '🔊';
-        audioBtn.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            this.speak(item.sound || item.correct);
-        });
+        audioBtn.onclick = () => this.speak(item.sound || item.correct);
         container.appendChild(audioBtn);
 
         const optionsDiv = document.createElement('div');
@@ -199,12 +189,9 @@ const GameEngine = {
             card.className = 'match-card';
             const wordDiv = document.createElement('div');
             wordDiv.className = 'match-word';
-            wordDiv.textContent = opt; // textContent pour sécurité
+            wordDiv.textContent = opt;
             card.appendChild(wordDiv);
-            card.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                this.handleMatchChoice(opt, card, item.correct);
-            });
+            card.onclick = () => this.handleMatchChoice(opt, card, item.correct);
             optionsDiv.appendChild(card);
         });
         container.appendChild(optionsDiv);
@@ -262,10 +249,7 @@ const GameEngine = {
         const audioBtn = document.createElement('button');
         audioBtn.className = 'btn-audio';
         audioBtn.textContent = '🔊';
-        audioBtn.addEventListener('pointerdown', (e) => {
-            e.preventDefault();
-            this.speak(item.word);
-        });
+        audioBtn.onclick = () => this.speak(item.word);
         container.appendChild(audioBtn);
 
         const partsDiv = document.createElement('div');
@@ -279,10 +263,7 @@ const GameEngine = {
             const btn = document.createElement('button');
             btn.className = 'syllable-btn';
             btn.textContent = part;
-            btn.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                this.handleSyllableChoice(part, btn);
-            });
+            btn.onclick = () => this.handleSyllableChoice(part, btn);
             partsDiv.appendChild(btn);
         });
         container.appendChild(partsDiv);
