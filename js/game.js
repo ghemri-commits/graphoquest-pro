@@ -1,3 +1,58 @@
+// Gestionnaire Audio Hybride (Sons enregistrés + Synthèse vocale)
+const AudioEngine = {
+    audioCache: {},
+    isMuted: false,
+
+    // Précharge les sons fréquents pour éviter la latence sur iPad
+    preload(sounds) {
+        sounds.forEach(src => {
+            if (!this.audioCache[src]) {
+                const audio = new Audio(src);
+                audio.load();
+                this.audioCache[src] = audio;
+            }
+        });
+    },
+
+    play(textOrUrl, isPhoneme = false, lang = 'fr') {
+        if (this.isMuted) return;
+
+        if (isPhoneme) {
+            const safeName = textOrUrl.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const url = `sounds/${lang}_${safeName}.mp3`;
+
+            let audio = this.audioCache[url];
+            if (!audio) {
+                audio = new Audio(url);
+                this.audioCache[url] = audio;
+            }
+
+            audio.onerror = () => this.speakTTS(textOrUrl, lang);
+
+            audio.currentTime = 0;
+            audio.play().catch(() => this.speakTTS(textOrUrl, lang));
+        } else {
+            this.speakTTS(textOrUrl, lang);
+        }
+    },
+
+    speakTTS(text, langCode) {
+        const synth = window.speechSynthesis;
+        if (!synth) return;
+
+        if (synth.paused) synth.resume();
+        synth.cancel();
+
+        setTimeout(() => {
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = langCode === 'en' ? 'en-GB' : 'fr-FR';
+            utter.rate = 0.8;
+            utter.pitch = 1.1;
+            synth.speak(utter);
+        }, 50);
+    }
+};
+
 const GameEngine = {
     currentProfile: null,
     currentLevel: null,
@@ -12,8 +67,8 @@ const GameEngine = {
     currentSyllableIndex: 0,
     correctFirstTry: 0,
     itemHasError: false,
-    errorItems: [],      // items avec erreur dans ce niveau → révision espacée
-    reviewRound: false,  // true pendant le round de révision
+    errorItems: [],
+    reviewRound: false,
 
     init(profile, levelId, gameType) {
         this.currentProfile = profile;
@@ -61,7 +116,6 @@ const GameEngine = {
     renderComplete(item) {
         const area = document.getElementById('game-area');
 
-        // correctAnswer may be multi-char (e.g. "PH", "UN")
         const correctAnswer = item.correct !== undefined ? item.correct : item.target[item.missing];
         const missingLen = correctAnswer.length;
 
@@ -76,10 +130,10 @@ const GameEngine = {
                 slot.className = 'letter-slot missing';
                 if (missingLen > 3) slot.classList.add('extra-wide');
                 else if (missingLen > 1) slot.classList.add('wide');
-                slot.textContent = '?';
+                slot.textContent = '';
                 slot.id = 'missing-slot';
                 wordDiv.appendChild(slot);
-                i += missingLen; // skip multi-char answer
+                i += missingLen;
             } else if (item.target[i] === '_') {
                 slot.className = 'letter-slot';
                 slot.style.cssText = 'width:20px;border:none;background:transparent;';
@@ -96,10 +150,9 @@ const GameEngine = {
         area.appendChild(wordDiv);
 
         const audioBtn = document.createElement('button');
-        audioBtn.className = 'btn-audio';
-        audioBtn.style.marginBottom = '20px';
-        audioBtn.textContent = '🔊';
-        audioBtn.onclick = () => this.speak(item.hint || item.target);
+        audioBtn.className = 'btn-audio-large';
+        audioBtn.innerHTML = '🔊 <span>Écouter</span>';
+        audioBtn.onclick = () => AudioEngine.play(item.hint || item.target, false, this.currentLang);
         area.appendChild(audioBtn);
 
         const choicesDiv = document.createElement('div');
@@ -110,7 +163,10 @@ const GameEngine = {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.textContent = opt;
-            btn.onclick = () => this.handleCompleteChoice(opt, btn);
+            btn.onclick = () => {
+                AudioEngine.play(opt, true, this.currentLang);
+                this.handleCompleteChoice(opt, btn);
+            };
             choicesDiv.appendChild(btn);
         });
         area.appendChild(choicesDiv);
@@ -121,7 +177,6 @@ const GameEngine = {
         this.isProcessing = true;
 
         const item = this.currentLevel.items[this.currentItemIndex];
-        // Support explicit correct field for multi-char answers (digraphs, prefixes)
         const expected = item.correct !== undefined ? item.correct : item.target[item.missing];
         const slot = document.getElementById('missing-slot');
         const isCorrect = choice === expected;
@@ -137,22 +192,18 @@ const GameEngine = {
             const points = 10 + (this.streak * 2);
             this.score += points;
             this.showFeedback('✅');
-            this.speak('Bravo !');
+            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Great!' : 'Bravo !', false, this.currentLang), 500);
             this.createParticles(btn);
 
-            // Barre à 100% sur le dernier item
             const total = this.currentLevel.items.length;
             document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
-
-            setTimeout(() => this.nextItem(), 1200);
+            setTimeout(() => this.nextItem(), 1500);
         } else {
             btn.classList.add('wrong');
             slot.classList.add('error');
             this.streak = 0;
             this.itemHasError = true;
             this.showFeedback('❌');
-            this.speak('Essaie encore');
-
             setTimeout(() => {
                 btn.classList.remove('wrong');
                 slot.classList.remove('error');
@@ -175,9 +226,9 @@ const GameEngine = {
         container.appendChild(target);
 
         const audioBtn = document.createElement('button');
-        audioBtn.className = 'btn-audio';
-        audioBtn.textContent = '🔊';
-        audioBtn.onclick = () => this.speak(item.sound || item.correct);
+        audioBtn.className = 'btn-audio-large';
+        audioBtn.innerHTML = '🔊';
+        audioBtn.onclick = () => AudioEngine.play(item.sound || item.correct, true, this.currentLang);
         container.appendChild(audioBtn);
 
         const optionsDiv = document.createElement('div');
@@ -191,7 +242,10 @@ const GameEngine = {
             wordDiv.className = 'match-word';
             wordDiv.textContent = opt;
             card.appendChild(wordDiv);
-            card.onclick = () => this.handleMatchChoice(opt, card, item.correct);
+            card.onclick = () => {
+                AudioEngine.play(opt, false, this.currentLang);
+                this.handleMatchChoice(opt, card, item.correct);
+            };
             optionsDiv.appendChild(card);
         });
         container.appendChild(optionsDiv);
@@ -209,17 +263,16 @@ const GameEngine = {
             this.streak++;
             this.score += 10 + (this.streak * 2);
             this.showFeedback('✅');
-            this.speak('Excellent !');
+            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Excellent!' : 'Excellent !', false, this.currentLang), 500);
             this.createParticles(card);
             const total = this.currentLevel.items.length;
             document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
-            setTimeout(() => this.nextItem(), 1200);
+            setTimeout(() => this.nextItem(), 1500);
         } else {
             card.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
             this.showFeedback('❌');
-            this.speak('Non, réessaie');
             setTimeout(() => {
                 card.classList.remove('wrong');
                 this.isProcessing = false;
@@ -243,13 +296,13 @@ const GameEngine = {
         const wordDiv = document.createElement('div');
         wordDiv.className = 'syllable-word';
         wordDiv.id = 'built-word';
-        wordDiv.textContent = '...';
+        wordDiv.textContent = '';
         container.appendChild(wordDiv);
 
         const audioBtn = document.createElement('button');
-        audioBtn.className = 'btn-audio';
-        audioBtn.textContent = '🔊';
-        audioBtn.onclick = () => this.speak(item.word);
+        audioBtn.className = 'btn-audio-large';
+        audioBtn.innerHTML = '🔊';
+        audioBtn.onclick = () => AudioEngine.play(item.word, false, this.currentLang);
         container.appendChild(audioBtn);
 
         const partsDiv = document.createElement('div');
@@ -263,7 +316,10 @@ const GameEngine = {
             const btn = document.createElement('button');
             btn.className = 'syllable-btn';
             btn.textContent = part;
-            btn.onclick = () => this.handleSyllableChoice(part, btn);
+            btn.onclick = () => {
+                AudioEngine.play(part, true, this.currentLang);
+                this.handleSyllableChoice(part, btn);
+            };
             partsDiv.appendChild(btn);
         });
         container.appendChild(partsDiv);
@@ -291,7 +347,7 @@ const GameEngine = {
                 this.streak++;
                 this.score += 15 + (this.streak * 3);
                 this.showFeedback('🌟');
-                this.speak('Génial !');
+                setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Awesome!' : 'Super !', false, this.currentLang), 600);
 
                 document.querySelectorAll('.syllable-btn').forEach(b => {
                     if (!b.disabled) b.classList.add('correct');
@@ -299,15 +355,13 @@ const GameEngine = {
 
                 const total = this.currentLevel.items.length;
                 document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
-
-                setTimeout(() => this.nextItem(), 1500);
+                setTimeout(() => this.nextItem(), 1800);
             }
         } else {
             btn.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
             this.showFeedback('❌');
-            this.speak('Presque !');
             setTimeout(() => btn.classList.remove('wrong'), 600);
         }
 
@@ -315,7 +369,6 @@ const GameEngine = {
     },
 
     nextItem() {
-        // Capturer l'item actuel avant incrémentation (itemHasError sera remis à false par render())
         const currentItem = this.currentLevel.items[this.currentItemIndex];
         if (this.itemHasError && currentItem) {
             this.errorItems.push(currentItem);
@@ -325,7 +378,6 @@ const GameEngine = {
         this.isProcessing = false;
 
         if (this.currentItemIndex >= this.currentLevel.items.length) {
-            // Répétition espacée : si erreurs et pas encore en round de révision, relancer les difficiles
             if (this.errorItems.length > 0 && !this.reviewRound) {
                 this._startReviewRound();
             } else {
@@ -352,23 +404,22 @@ const GameEngine = {
         banner.style.cssText = 'text-align:center;animation:pop 0.5s;padding:40px';
         banner.innerHTML = `
             <div style="font-size:80px;margin-bottom:16px">🔁</div>
-            <h2 style="font-size:28px;margin-bottom:8px">Révision des difficultés !</h2>
-            <p style="font-size:18px;color:#64748b">On réessaie les lettres difficiles</p>
+            <h2 style="font-size:28px;margin-bottom:8px">Révision !</h2>
+            <p style="font-size:18px;color:#64748b">On réessaie les plus difficiles</p>
         `;
         area.appendChild(banner);
+        AudioEngine.play(this.currentLang === 'en' ? "Let's review!" : "On révise !", false, this.currentLang);
 
-        setTimeout(() => this.render(), 1800);
+        setTimeout(() => this.render(), 2500);
     },
 
     endLevel() {
         const total = this.currentLevel.items.length;
         const ratio = this.correctFirstTry / total;
-        // Étoiles basées sur les bonnes réponses du premier coup
         let stars = 1;
         if (ratio >= 0.7) stars = 2;
         if (ratio >= 1.0) stars = 3;
 
-        // Barre à 100% pour le rendu final
         document.getElementById('game-progress-fill').style.width = '100%';
 
         ProfileManager.recordLevelComplete(
@@ -386,11 +437,13 @@ const GameEngine = {
                 <div style="font-size:100px;margin-bottom:20px">🏆</div>
                 <h2 style="font-size:32px;margin-bottom:10px">Niveau terminé !</h2>
                 <div style="font-size:50px;margin:20px 0">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-                <p style="font-size:22px;color:#666">${this.correctFirstTry}/${total} bonnes réponses du premier coup (${percent}%)</p>
+                <p style="font-size:22px;color:#666">${this.correctFirstTry}/${total} (${percent}%)</p>
                 <p style="font-size:20px;color:#888;margin-top:8px">Score : ${this.score}</p>
-                <button class="btn-primary" style="margin-top:30px" onclick="exitGame()">Continuer ➡</button>
+                <button class="btn-primary" style="margin-top:30px;font-size:24px;padding:15px 40px" onclick="exitGame()">Continuer ➡</button>
             </div>
         `;
+
+        AudioEngine.play(this.currentLang === 'en' ? 'Level complete!' : 'Niveau terminé !', false, this.currentLang);
         this.createConfetti();
     },
 
@@ -400,30 +453,11 @@ const GameEngine = {
         setTimeout(() => overlay.innerHTML = '', 1000);
     },
 
-    speak(text) {
-        const synth = window.speechSynthesis;
-        if (!synth) return;
-
-        // iOS Safari : le synthétiseur se bloque après inactivité → resume() le réveille
-        if (synth.paused) synth.resume();
-        synth.cancel();
-
-        // iOS Safari : cancel() + speak() immédiat échoue silencieusement
-        // 50ms suffisent à stabiliser l'engine audio
-        setTimeout(() => {
-            const utter = new SpeechSynthesisUtterance(text);
-            utter.lang = this.currentProfile?.lang === 'en' ? 'en-GB' : 'fr-FR';
-            utter.rate = 0.8;
-            synth.speak(utter);
-        }, 50);
-    },
-
     createParticles(element) {
         const elemRect = element.getBoundingClientRect();
         const gameArea = document.getElementById('game-area');
         const gameRect = gameArea.getBoundingClientRect();
 
-        // Use coordinates relative to game-area (which is position:relative)
         const cx = elemRect.left + elemRect.width / 2 - gameRect.left;
         const cy = elemRect.top + elemRect.height / 2 - gameRect.top;
 

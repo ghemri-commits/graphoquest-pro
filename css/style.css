@@ -138,27 +138,78 @@ html, body {
     justify-content: center;
 }
 
-/* Bouton audio dédié aux mini-jeux — massif et coloré */
-.btn-audio {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
+/* Bouton audio dédié aux mini-jeux — pill avec label "Écouter" ou icône seule */
+.btn-audio,
+.btn-audio-large {
+    min-width: 80px;
+    min-height: 72px;
+    padding: 16px 28px;
+    border-radius: 40px;
     border: none;
     background: var(--primary);
     color: white;
-    font-size: 36px;
+    font-size: 32px;
     cursor: pointer;
     box-shadow: var(--shadow);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
+    gap: 10px;
+    transition: transform 0.1s, background 0.1s;
     flex-shrink: 0;
+    margin-bottom: 20px;
 }
 
-.btn-audio:active {
-    transform: scale(0.9);
+.btn-audio span,
+.btn-audio-large span {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.btn-audio:active,
+.btn-audio-large:active {
+    transform: scale(0.88);
     background: var(--primary-dark);
+}
+
+/* ===== RETOUR VISUEL TACTILE — enfoncement physique des boutons ===== */
+
+/* Boutons de choix de lettres */
+.choice-btn:active {
+    transform: scale(0.84);
+    background: #e0e7ff;
+    border-color: var(--primary);
+}
+
+/* Cartes Son & Image */
+.match-card:active {
+    transform: scale(0.88);
+    background: #ede9fe;
+    border-color: var(--primary);
+}
+
+/* Boutons syllabes */
+.syllable-btn:active {
+    transform: scale(0.88);
+    background: #ede9fe;
+    border-color: var(--primary);
+}
+
+/* Nœuds de la carte du monde */
+.world-node:not(.locked):active {
+    transform: scale(0.92);
+}
+
+/* Cartes mini-jeux */
+.game-card:active {
+    transform: scale(0.92);
+    box-shadow: none;
+}
+
+/* Cartes profil */
+.profile-card:active {
+    transform: scale(0.96);
+    box-shadow: var(--shadow);
 }
 
 .btn-group {
