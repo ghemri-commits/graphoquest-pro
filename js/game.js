@@ -341,6 +341,15 @@ const GameEngine = {
 
             this.currentSyllableIndex++;
 
+            // Si la même syllabe est encore attendue plus loin, réactiver le bouton
+            const stillNeeded = this.syllableSequence.slice(this.currentSyllableIndex).includes(part);
+            if (stillNeeded) {
+                setTimeout(() => {
+                    btn.classList.remove('selected');
+                    btn.disabled = false;
+                }, 400);
+            }
+
             if (this.currentSyllableIndex >= this.syllableSequence.length) {
                 this.isProcessing = true;
                 if (!this.itemHasError) this.correctFirstTry++;
