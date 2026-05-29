@@ -833,16 +833,49 @@ const GameEngine = {
         soundBtn.onclick = () => AudioEngine.play(item.word || item.target, false, this.currentLang);
         container.appendChild(soundBtn);
 
+        const en = this.currentLang === 'en';
+
+        // Consigne : écriture manuscrite d'abord (Apple Pencil → Scribble convertit
+        // l'écriture en texte), clavier en secours d'un simple tap.
+        const writeHint = document.createElement('p');
+        writeHint.innerHTML = en
+            ? '✍️ Write the word with your pencil <span style="opacity:.65">— or tap to type</span>'
+            : '✍️ Écris le mot avec ton crayon <span style="opacity:.65">— ou tape pour le clavier</span>';
+        writeHint.style.cssText = 'font-size:15px;color:#64748b;margin:0;font-weight:600;text-align:center;';
+        container.appendChild(writeHint);
+
+        // Grande « ardoise » : c'est un VRAI champ texte éditable (indispensable
+        // pour que Scribble d'iPadOS reconnaisse l'écriture), stylé comme un cahier.
         const input = document.createElement('input');
         input.type = 'text';
         input.id = 'dictation-input';
-        input.placeholder = this.currentLang === 'en' ? 'Type...' : 'Écris ici...';
+        input.lang = en ? 'en' : 'fr-CA';            // langue de reconnaissance Scribble
+        input.placeholder = '✍️';
         input.autocomplete = 'off';
         input.autocorrect = 'off';
         input.autocapitalize = 'none';
         input.spellcheck = false;
-        input.style.cssText = 'width:100%;font-size:24px;padding:14px 18px;border-radius:16px;border:2px solid #cbd5e1;text-align:center;font-weight:600;outline:none;background:#f8fafc;color:#1e293b;';
+        input.setAttribute('inputmode', 'text');
+        input.setAttribute('enterkeyhint', 'done');
+        input.style.cssText = 'width:100%;height:120px;font-size:44px;line-height:120px;padding:0 18px;border-radius:20px;border:2px dashed #94a3b8;text-align:center;font-weight:700;outline:none;background:#ffffff;color:#1e293b;background-image:linear-gradient(#e2e8f0 1px, transparent 1px);background-size:100% 50%;background-position:0 62%;letter-spacing:2px;';
         container.appendChild(input);
+
+        const penStatus = document.createElement('p');
+        penStatus.style.cssText = 'font-size:13px;color:#94a3b8;margin:0;font-weight:600;min-height:16px;';
+        container.appendChild(penStatus);
+
+        // Retour visuel crayon/doigt (Scribble et clavier s'activent
+        // automatiquement selon l'outil — aucune bascule manuelle nécessaire).
+        input.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'pen') {
+                penStatus.textContent = en ? '✏️ Pencil mode' : '✏️ Mode crayon';
+                penStatus.style.color = '#6366f1';
+            } else {
+                penStatus.textContent = en ? '⌨️ Keyboard' : '⌨️ Clavier';
+                penStatus.style.color = '#94a3b8';
+            }
+        });
+
 
         const submitBtn = document.createElement('button');
         submitBtn.textContent = this.currentLang === 'en' ? 'Check ✓' : 'Valider ✓';
@@ -864,15 +897,16 @@ const GameEngine = {
 
         if (item.hint) {
             const hintText = document.createElement('p');
-            hintText.innerHTML = `💡 Indice : <em>${item.hint}</em>`;
+            hintText.innerHTML = `💡 ${en ? 'Hint' : 'Indice'} : <em>${item.hint}</em>`;
             hintText.style.cssText = 'font-size:15px;color:#64748b;margin-top:8px;';
             container.appendChild(hintText);
         }
 
         area.appendChild(container);
 
+        // On joue le mot, mais SANS focus auto : sinon le clavier s'ouvre et
+        // masque l'ardoise. L'enfant écrit au crayon (Scribble) ou tape lui-même.
         setTimeout(() => {
-            input.focus();
             AudioEngine.play(item.word || item.target, false, this.currentLang);
         }, 400);
     },
@@ -928,11 +962,16 @@ const GameEngine = {
             this.showFeedback('❌');
 
             setTimeout(() => {
-                input.style.borderColor = '#cbd5e1';
-                input.style.background = '#f8fafc';
+                // Restaure l'apparence « ardoise » (sans forcer le focus, pour ne
+                // pas ouvrir le clavier : l'enfant réessaie au crayon).
+                input.value = '';
+                input.style.borderColor = '#94a3b8';
                 input.style.color = '#1e293b';
+                input.style.background = '#ffffff';
+                input.style.backgroundImage = 'linear-gradient(#e2e8f0 1px, transparent 1px)';
+                input.style.backgroundSize = '100% 50%';
+                input.style.backgroundPosition = '0 62%';
                 input.classList.remove('shake-animation');
-                input.focus();
                 this.isProcessing = false;
             }, 1200);
         }
