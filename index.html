@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
     <div id="app">
@@ -101,9 +101,48 @@
                             <span class="game-icon">✂️</span>
                             <span class="game-title">Syllabes</span>
                         </button>
+                        <button class="game-card" onclick="launchGame('pronounce')">
+                            <span class="game-icon">🎤</span>
+                            <span class="game-title">Prononciation</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('dictation')">
+                            <span class="game-icon">✍️</span>
+                            <span class="game-title">Dictée</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('accord')">
+                            <span class="game-icon">📝</span>
+                            <span class="game-title">Accord-Express</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('morpho')">
+                            <span class="game-icon">🧱</span>
+                            <span class="game-title">Morpho-Tri</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('comprehension')">
+                            <span class="game-icon">📖</span>
+                            <span class="game-title">Compréhension</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('coquille')">
+                            <span class="game-icon">🔍</span>
+                            <span class="game-title">Chasse aux coquilles</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('vocab')">
+                            <span class="game-icon">📚</span>
+                            <span class="game-title">Vocabulaire</span>
+                        </button>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Boutique d'accessoires -->
+        <div id="shop-screen" class="screen">
+            <div class="parent-header">
+                <h1>🛍️ Boutique</h1>
+                <button class="btn-icon" onclick="exitGame()">✖️</button>
+            </div>
+            <div id="shop-balance" style="text-align:center;font-size:20px;font-weight:800;color:#d97706;margin-bottom:8px"></div>
+            <p style="text-align:center;color:#64748b;font-size:15px;margin-bottom:20px">Gagne des pièces 🪙 en jouant, puis décore ton avatar !</p>
+            <div id="shop-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px;padding-bottom:20px"></div>
         </div>
 
         <!-- Zone de jeu -->
@@ -172,6 +211,10 @@
                 </div>
 
                 <div id="tab-settings" class="tab-content">
+                    <h3>🎙️ Clé ElevenLabs API (Optionnelle)</h3>
+                    <input type="password" id="elevenlabs-key" placeholder="Entrez votre clé API ElevenLabs" style="width:100%; padding:12px; border-radius:12px; border:2px solid #cbd5e1; margin-bottom:8px;" onchange="ElevenLabsEngine.setApiKey(this.value)">
+                    <p style="font-size:13px; color:#64748b; margin-bottom:24px;">Si laissé vide, l'iPad utilisera automatiquement sa propre voix de synthèse vocale québécoise (sans frais).</p>
+
                     <h3>Changer le code PIN</h3>
                     <input type="password" id="new-pin" placeholder="Nouveau PIN (4 chiffres)" maxlength="4">
                     <button class="btn-primary" onclick="changePin()">🔐 Enregistrer</button>
@@ -196,10 +239,12 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="js/firebase-init.js"></script>
 
-    <script src="js/data.js"></script>
-    <script src="js/profiles.js"></script>
-    <script src="js/game.js"></script>
-    <script src="js/parent.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/words_meq.js?v=2"></script>
+    <script src="js/data.js?v=2"></script>
+    <script src="js/profiles.js?v=2"></script>
+    <script src="js/tutor.js?v=2"></script>
+    <script src="js/game.js?v=2"></script>
+    <script src="js/parent.js?v=2"></script>
+    <script src="js/app.js?v=2"></script>
 </body>
 </html>
