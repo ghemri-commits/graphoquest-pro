@@ -30,7 +30,10 @@ const ElevenLabsEngine = {
             throw new Error("Pas de clé API");
         }
 
-        const cacheKey = `gq_audio_${lang}_${btoa(encodeURIComponent(text.toLowerCase()))}`;
+        const langCode = lang === 'en' ? 'en' : 'fr';
+        // Cache versionné (v2) : les anciennes entrées mal prononcées (en
+        // anglais) ne sont plus réutilisées.
+        const cacheKey = `gq_tts_${langCode}_${btoa(encodeURIComponent(text.toLowerCase()))}`;
         const cachedAudio = localStorage.getItem(cacheKey);
 
         if (cachedAudio) {
@@ -47,7 +50,10 @@ const ElevenLabsEngine = {
             },
             body: JSON.stringify({
                 text: text,
-                model_id: 'eleven_multilingual_v2',
+                // turbo v2.5 respecte language_code (contrairement à multilingual_v2
+                // qui devinait la langue et lisait "table"/"grand" en anglais).
+                model_id: 'eleven_turbo_v2_5',
+                language_code: langCode,
                 voice_settings: {
                     stability: 0.6,
                     similarity_boost: 0.8
@@ -80,7 +86,8 @@ const ElevenLabsEngine = {
 
     clearAudioCache() {
         Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('gq_audio_')) {
+            // Purge le cache courant (gq_tts_) ET l'ancien format (gq_audio_).
+            if (key.startsWith('gq_tts_') || key.startsWith('gq_audio_')) {
                 localStorage.removeItem(key);
             }
         });
@@ -263,7 +270,16 @@ const AudioEngine = {
 
         setTimeout(() => {
             const utter = new SpeechSynthesisUtterance(text);
-            utter.lang = langCode === 'en' ? 'en-US' : 'fr-CA';
+            const want = langCode === 'en' ? 'en' : 'fr';
+            // Choisir une vraie voix de la bonne langue (sinon iOS peut lire en
+            // anglais par défaut). Priorité fr-CA, puis fr-FR, puis toute voix fr.
+            const voices = synth.getVoices() || [];
+            const pick =
+                (want === 'fr' && voices.find(v => /^fr-CA/i.test(v.lang))) ||
+                (want === 'fr' && voices.find(v => /^fr-FR/i.test(v.lang))) ||
+                voices.find(v => v.lang && v.lang.toLowerCase().startsWith(want));
+            if (pick) utter.voice = pick;
+            utter.lang = pick ? pick.lang : (want === 'en' ? 'en-US' : 'fr-CA');
             utter.rate = rate || 0.75;
             utter.pitch = 1.05;
             synth.speak(utter);

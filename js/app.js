@@ -14,6 +14,14 @@ function getDeviceId() {
 }
 
 window.onload = () => {
+    // Purge unique de l'ancien cache audio (mots mis en cache avec la mauvaise
+    // prononciation anglaise avant le correctif de langue).
+    try {
+        Object.keys(localStorage).forEach(k => {
+            if (k.startsWith('gq_audio_')) localStorage.removeItem(k);
+        });
+    } catch (e) {}
+
     // Initialise l'API Key ElevenLabs dans le champ d'input au chargement si présent
     const key = ElevenLabsEngine.getApiKey();
     const keyField = document.getElementById('elevenlabs-key');
