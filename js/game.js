@@ -9,10 +9,11 @@ const ElevenLabsEngine = {
     },
 
     getVoiceId(lang) {
-        // ID voix configurés pour une élocution douce et claire (adapté aux enfants)
+        // FR : voix nativement française (corrige l'anglicisation de mots
+        // courts comme « table », « grand »). EN : voix anglaise native.
         return lang === 'en'
-            ? 'pNInz6obpg7If685it72' // Rachel
-            : '21m00Tcm4TlvDq8ikWAM'; // Rachel FR ou autre voix douce
+            ? 'pNInz6obpg7If685it72'  // Adam (anglais)
+            : 'NW7MRm1Ibz4gwivTc7oV'; // voix française fournie par l'utilisateur
     },
 
     blobToBase64(blob) {
@@ -31,9 +32,9 @@ const ElevenLabsEngine = {
         }
 
         const langCode = lang === 'en' ? 'en' : 'fr';
-        // Cache versionné (v2) : les anciennes entrées mal prononcées (en
-        // anglais) ne sont plus réutilisées.
-        const cacheKey = `gq_tts_${langCode}_${btoa(encodeURIComponent(text.toLowerCase()))}`;
+        // Cache versionné (v3 = nouvelle voix FR) : les anciennes entrées mal
+        // prononcées ne sont plus réutilisées.
+        const cacheKey = `gq_tts3_${langCode}_${btoa(encodeURIComponent(text.toLowerCase()))}`;
         const cachedAudio = localStorage.getItem(cacheKey);
 
         if (cachedAudio) {
@@ -86,8 +87,8 @@ const ElevenLabsEngine = {
 
     clearAudioCache() {
         Object.keys(localStorage).forEach(key => {
-            // Purge le cache courant (gq_tts_) ET l'ancien format (gq_audio_).
-            if (key.startsWith('gq_tts_') || key.startsWith('gq_audio_')) {
+            // Purge le cache courant et tous les anciens formats audio.
+            if (key.startsWith('gq_tts3_') || key.startsWith('gq_tts_') || key.startsWith('gq_audio_')) {
                 localStorage.removeItem(key);
             }
         });
