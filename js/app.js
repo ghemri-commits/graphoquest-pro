@@ -43,7 +43,7 @@ function renderProfiles() {
 
             const avatarDiv = document.createElement('div');
             avatarDiv.className = 'profile-avatar';
-            avatarDiv.textContent = p.avatar;
+            avatarDiv.textContent = avatarWithAccessory(p);
 
             const nameDiv = document.createElement('div');
             nameDiv.className = 'profile-name';
@@ -214,6 +214,7 @@ function buildTutorPanel(profile, lang, data, unlockedLevels) {
     };
     stats.appendChild(chip(`🔥 ${streak} ${en ? (streak > 1 ? 'days' : 'day') : (streak > 1 ? 'jours' : 'jour')}`));
     stats.appendChild(chip(`⭐ ${profile.totalScore}`));
+    stats.appendChild(chip(`🪙 ${profile.coins || 0}`));
     stats.appendChild(chip(`🎯 ${completedCount}`));
     panel.appendChild(stats);
 
@@ -244,7 +245,123 @@ function buildTutorPanel(profile, lang, data, unlockedLevels) {
     }
     panel.appendChild(cta);
 
+    // Rangée d'actions : Défi du jour + Boutique
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:10px;margin-top:12px;';
+    const today = ProfileManager._todayStr();
+    const challengeDone = profile.lastChallenge === today;
+
+    const challengeBtn = document.createElement('button');
+    challengeBtn.style.cssText = `flex:1;border:none;border-radius:14px;padding:12px;font-size:15px;font-weight:800;cursor:pointer;${challengeDone ? 'background:rgba(255,255,255,0.25);color:#fff' : 'background:#fcd34d;color:#7c2d12'}`;
+    challengeBtn.textContent = challengeDone
+        ? (en ? '✅ Daily done' : '✅ Défi réussi')
+        : (en ? '🎲 Daily challenge' : '🎲 Défi du jour');
+    if (!challengeDone) challengeBtn.onclick = () => launchDailyChallenge();
+    actions.appendChild(challengeBtn);
+
+    const shopBtn = document.createElement('button');
+    shopBtn.style.cssText = 'flex:1;border:none;border-radius:14px;padding:12px;font-size:15px;font-weight:800;cursor:pointer;background:rgba(255,255,255,0.95);color:#4f46e5;';
+    shopBtn.textContent = en ? '🛍️ Shop' : '🛍️ Boutique';
+    shopBtn.onclick = () => openShop();
+    actions.appendChild(shopBtn);
+
+    panel.appendChild(actions);
+
     return panel;
+}
+
+/* ===== ACCESSOIRE ÉQUIPÉ SUR L'AVATAR ===== */
+function avatarWithAccessory(profile) {
+    const acc = profile.equipped ? ProfileManager.getAccessory(profile.equipped) : null;
+    return profile.avatar + (acc ? acc.emoji : '');
+}
+
+/* ===== DÉFI DU JOUR ===== */
+function launchDailyChallenge() {
+    const profile = ProfileManager.getCurrent();
+    if (!profile) return;
+    if (typeof buildDailyChallenge !== 'function') return;
+    const level = buildDailyChallenge(profile, ProfileManager._todayStr());
+    if (!level || !level.items.length) return;
+    GameEngine.init(profile, null, level.miniGame, level);
+    showScreen('game-screen');
+}
+
+/* ===== BOUTIQUE ===== */
+function openShop() {
+    renderShop();
+    showScreen('shop-screen');
+}
+
+function renderShop() {
+    const profile = ProfileManager.getCurrent();
+    if (!profile) return;
+    const en = profile.lang === 'en';
+
+    const bal = document.getElementById('shop-balance');
+    if (bal) bal.textContent = `🪙 ${profile.coins || 0} ${en ? 'coins' : 'pièces'}`;
+
+    const grid = document.getElementById('shop-grid');
+    grid.innerHTML = '';
+    const owned = profile.owned || [];
+
+    ProfileManager.ACCESSORIES.forEach(acc => {
+        const isOwned = owned.includes(acc.id);
+        const isEquipped = profile.equipped === acc.id;
+
+        const card = document.createElement('div');
+        card.style.cssText = `background:#fff;border:2px solid ${isEquipped ? '#10b981' : '#e2e8f0'};border-radius:18px;padding:14px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.05);`;
+
+        const emoji = document.createElement('div');
+        emoji.textContent = acc.emoji;
+        emoji.style.cssText = 'font-size:42px;line-height:1;margin-bottom:8px;';
+        card.appendChild(emoji);
+
+        const name = document.createElement('div');
+        name.textContent = en ? acc.nameEn : acc.nameFr;
+        name.style.cssText = 'font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px;';
+        card.appendChild(name);
+
+        const btn = document.createElement('button');
+        btn.style.cssText = 'width:100%;border:none;border-radius:12px;padding:10px;font-size:14px;font-weight:800;cursor:pointer;';
+        if (!isOwned) {
+            const affordable = (profile.coins || 0) >= acc.cost;
+            btn.textContent = `🪙 ${acc.cost}`;
+            btn.style.background = affordable ? '#6366f1' : '#cbd5e1';
+            btn.style.color = '#fff';
+            btn.onclick = () => doBuy(acc.id);
+        } else if (isEquipped) {
+            btn.textContent = en ? 'Remove' : 'Retirer';
+            btn.style.background = '#fee2e2';
+            btn.style.color = '#b91c1c';
+            btn.onclick = () => { ProfileManager.equipAccessory(profile.id, null); renderShop(); };
+        } else {
+            btn.textContent = en ? 'Wear' : 'Équiper';
+            btn.style.background = '#10b981';
+            btn.style.color = '#fff';
+            btn.onclick = () => { ProfileManager.equipAccessory(profile.id, acc.id); renderShop(); };
+        }
+        card.appendChild(btn);
+        grid.appendChild(card);
+    });
+}
+
+function doBuy(accId) {
+    const profile = ProfileManager.getCurrent();
+    if (!profile) return;
+    const res = ProfileManager.buyAccessory(profile.id, accId);
+    if (!res.ok && res.reason === 'coins') {
+        const bal = document.getElementById('shop-balance');
+        if (bal) {
+            const en = profile.lang === 'en';
+            bal.textContent = en ? 'Not enough coins 🪙' : 'Pas assez de pièces 🪙';
+            bal.style.color = '#ef4444';
+            setTimeout(() => { bal.style.color = '#d97706'; renderShop(); }, 1500);
+        }
+        return;
+    }
+    if (typeof AudioEngine !== 'undefined') AudioEngine.vibrate('correct');
+    renderShop();
 }
 
 /* ===== TABLEAU DE BORD (CARTE PAR CYCLES DU PRIMAIRE) ===== */
@@ -253,7 +370,7 @@ function showDashboard() {
     const profile = ProfileManager.getCurrent();
     if (!profile) return;
 
-    document.getElementById('dash-avatar').textContent = profile.avatar;
+    document.getElementById('dash-avatar').textContent = avatarWithAccessory(profile);
     document.getElementById('dash-name').textContent = profile.name;
     document.getElementById('dash-level').textContent =
         `⭐ ${profile.totalScore} · 🎯 ${Object.keys(profile.progress).length} réussis`;
@@ -309,7 +426,7 @@ function showDashboard() {
 
         cycle.levels.forEach(level => {
             const levelId = level.id;
-            const isUnlocked = unlockedLevels.includes(levelId);
+            const isUnlocked = unlockedLevels.includes(levelId) || level.alwaysUnlocked;
             const isCompleted = profile.progress[levelId];
             const isCurrent = isUnlocked && !isCompleted;
 
@@ -384,7 +501,7 @@ function launchGame(gameType) {
         : (profile.unlockedLevelsFr || [1]);
 
     const level = data.levels.find(l =>
-        l.miniGame === gameType && unlockedLevels.includes(l.id)
+        l.miniGame === gameType && (unlockedLevels.includes(l.id) || l.alwaysUnlocked)
     );
 
     if (level) {
@@ -417,6 +534,6 @@ function showParentLogin() {
 /* ===== SÉCURITÉ TACTILE IPAD ===== */
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('touchmove', e => {
-    if (e.target.closest('#parent-screen') || e.target.closest('#dashboard-screen') || e.target.closest('#game-screen')) return;
+    if (e.target.closest('#parent-screen') || e.target.closest('#dashboard-screen') || e.target.closest('#game-screen') || e.target.closest('#shop-screen')) return;
     e.preventDefault();
 }, { passive: false });

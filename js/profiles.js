@@ -18,6 +18,10 @@ const ProfileManager = {
                 if (!Array.isArray(p.badges)) { p.badges = []; needsSave = true; }
                 if (typeof p.streakDays !== 'number') { p.streakDays = 0; needsSave = true; }
                 if (!('lastPlayed' in p)) { p.lastPlayed = null; needsSave = true; }
+                if (typeof p.coins !== 'number') { p.coins = 0; needsSave = true; }
+                if (!Array.isArray(p.owned)) { p.owned = []; needsSave = true; }
+                if (!('equipped' in p)) { p.equipped = null; needsSave = true; }
+                if (!('lastChallenge' in p)) { p.lastChallenge = null; needsSave = true; }
             });
             if (needsSave) this._saveLocal(profiles);
             return profiles;
@@ -87,7 +91,11 @@ const ProfileManager = {
             unlockedLevelsEn: [1],
             badges: [],
             streakDays: 0,
-            lastPlayed: null
+            lastPlayed: null,
+            coins: 0,
+            owned: [],
+            equipped: null,
+            lastChallenge: null
         };
 
         profiles.push(newProfile);
@@ -145,14 +153,12 @@ const ProfileManager = {
         if (stars > prog.stars) prog.stars = stars;
         profile.totalScore += score;
 
+        // Pièces dépensables (boutique) — distinctes du score qui sert aux rangs.
+        const coinsEarned = score;
+        profile.coins = (profile.coins || 0) + coinsEarned;
+
         // --- Série de jours consécutifs (motivation à revenir chaque jour) ---
-        const today = this._todayStr();
-        if (profile.lastPlayed !== today) {
-            const yesterday = this._shiftDay(today, -1);
-            profile.streakDays = (profile.lastPlayed === yesterday) ? (profile.streakDays || 0) + 1 : 1;
-            profile.lastPlayed = today;
-        }
-        if (!profile.streakDays) profile.streakDays = 1;
+        this._bumpStreak(profile);
 
         // --- Déblocage du niveau suivant ---
         const nextLevel = levelId + 1;
@@ -178,6 +184,51 @@ const ProfileManager = {
 
         return {
             streakDays: profile.streakDays,
+            coinsEarned: coinsEarned,
+            rank: newRank,
+            rankUp: newRank.index > prevRank.index,
+            newBadges: newBadgeIds.map(id => this.BADGES.find(b => b.id === id)).filter(Boolean)
+        };
+    },
+
+    // Série de jours : +1 si on a joué hier, sinon repart à 1.
+    _bumpStreak(profile) {
+        const today = this._todayStr();
+        if (profile.lastPlayed !== today) {
+            const yesterday = this._shiftDay(today, -1);
+            profile.streakDays = (profile.lastPlayed === yesterday) ? (profile.streakDays || 0) + 1 : 1;
+            profile.lastPlayed = today;
+        }
+        if (!profile.streakDays) profile.streakDays = 1;
+    },
+
+    // Défi du jour : récompense bonifiée, ne s'enregistre pas comme un niveau.
+    recordChallenge(profileId, score, stars, lang) {
+        const profiles = this.getAll();
+        const profile = profiles.find(p => p.id === profileId);
+        if (!profile) return null;
+
+        const prevRank = this.getRank(profile.totalScore);
+        const challengeBonus = 50 + stars * 25;
+        const coinsEarned = score + challengeBonus;
+
+        profile.totalScore += score;
+        profile.coins = (profile.coins || 0) + coinsEarned;
+        this._bumpStreak(profile);
+        profile.lastChallenge = this._todayStr();
+
+        if (!Array.isArray(profile.badges)) profile.badges = [];
+        const qualified = this._qualifiedBadges(profile, stars);
+        const newBadgeIds = qualified.filter(id => !profile.badges.includes(id));
+        profile.badges.push(...newBadgeIds);
+
+        const newRank = this.getRank(profile.totalScore);
+        this.update(profileId, profile);
+
+        return {
+            streakDays: profile.streakDays,
+            coinsEarned: coinsEarned,
+            challengeBonus: challengeBonus,
             rank: newRank,
             rankUp: newRank.index > prevRank.index,
             newBadges: newBadgeIds.map(id => this.BADGES.find(b => b.id === id)).filter(Boolean)
@@ -236,6 +287,44 @@ const ProfileManager = {
             score1000: (profile.totalScore || 0) >= 1000
         };
         return Object.keys(checks).filter(id => checks[id]);
+    },
+
+    /* ===== BOUTIQUE D'ACCESSOIRES (récompenses visuelles) ===== */
+    ACCESSORIES: [
+        { id: 'hat', emoji: '🎩', nameFr: 'Chapeau', nameEn: 'Top hat', cost: 100 },
+        { id: 'glasses', emoji: '🕶️', nameFr: 'Lunettes', nameEn: 'Sunglasses', cost: 150 },
+        { id: 'crown', emoji: '👑', nameFr: 'Couronne', nameEn: 'Crown', cost: 400 },
+        { id: 'cape', emoji: '🦸', nameFr: 'Cape de héros', nameEn: 'Hero cape', cost: 300 },
+        { id: 'star', emoji: '🌟', nameFr: 'Étoile magique', nameEn: 'Magic star', cost: 200 },
+        { id: 'rainbow', emoji: '🌈', nameFr: 'Arc-en-ciel', nameEn: 'Rainbow', cost: 250 },
+        { id: 'rocket', emoji: '🚀', nameFr: 'Fusée', nameEn: 'Rocket', cost: 500 },
+        { id: 'medal', emoji: '🏅', nameFr: 'Médaille', nameEn: 'Medal', cost: 350 }
+    ],
+
+    getAccessory(id) {
+        return this.ACCESSORIES.find(a => a.id === id) || null;
+    },
+
+    buyAccessory(profileId, accId) {
+        const profile = this.getAll().find(p => p.id === profileId);
+        const acc = this.getAccessory(accId);
+        if (!profile || !acc) return { ok: false };
+        if (!Array.isArray(profile.owned)) profile.owned = [];
+        if (profile.owned.includes(accId)) return { ok: true, already: true };
+        if ((profile.coins || 0) < acc.cost) return { ok: false, reason: 'coins' };
+        profile.coins -= acc.cost;
+        profile.owned.push(accId);
+        profile.equipped = accId; // équipe automatiquement le nouvel achat
+        this.update(profileId, profile);
+        return { ok: true };
+    },
+
+    equipAccessory(profileId, accId) {
+        const profile = this.getAll().find(p => p.id === profileId);
+        if (!profile) return;
+        if (accId && (!profile.owned || !profile.owned.includes(accId))) return;
+        profile.equipped = accId || null;
+        this.update(profileId, profile);
     },
 
     _todayStr() {

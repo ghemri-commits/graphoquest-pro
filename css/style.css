@@ -1459,3 +1459,14 @@ input:focus, select:focus {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-4px); }
 }
+
+/* ===== INDICE ADAPTATIF (surbrillance de la bonne réponse) ===== */
+@keyframes hintGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+}
+.hint-glow {
+    outline: 3px solid #10b981 !important;
+    outline-offset: 2px;
+    animation: hintGlow 1.2s ease-in-out infinite;
+}

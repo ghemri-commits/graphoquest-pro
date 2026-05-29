@@ -254,7 +254,7 @@ const AudioEngine = {
         }
     },
 
-    speakTTS(text, langCode) {
+    speakTTS(text, langCode, rate) {
         const synth = window.speechSynthesis;
         if (!synth) return;
 
@@ -264,10 +264,16 @@ const AudioEngine = {
         setTimeout(() => {
             const utter = new SpeechSynthesisUtterance(text);
             utter.lang = langCode === 'en' ? 'en-US' : 'fr-CA';
-            utter.rate = 0.75;
+            utter.rate = rate || 0.75;
             utter.pitch = 1.05;
             synth.speak(utter);
         }, 50);
+    },
+
+    // Prononciation ralentie et bien articulée pour les indices (différenciation).
+    speakSlow(text, lang) {
+        if (this.isMuted) return;
+        this.speakTTS(text, lang, 0.5);
     },
 
     vibrate(type) {
@@ -298,11 +304,16 @@ const GameEngine = {
     errorItems: [],
     reviewRound: false,
 
-    init(profile, levelId, gameType) {
+    init(profile, levelId, gameType, levelObj) {
         this.currentProfile = profile;
         this.currentLang = profile.lang === 'both' ? 'fr' : profile.lang;
-        const data = getGameData(this.currentLang);
-        this.currentLevel = data.levels.find(l => l.id === levelId);
+        if (levelObj) {
+            this.currentLevel = levelObj;
+        } else {
+            const data = getGameData(this.currentLang);
+            this.currentLevel = data.levels.find(l => l.id === levelId);
+        }
+        this.challengeMode = !!(this.currentLevel && this.currentLevel.isChallenge);
 
         this.currentGame = gameType || this.currentLevel.miniGame;
         this.currentItemIndex = 0;
@@ -330,6 +341,8 @@ const GameEngine = {
         document.getElementById('game-progress-fill').style.width = `${(this.currentItemIndex / total) * 100}%`;
         document.getElementById('current-score').textContent = this.score;
         this.itemHasError = false;
+        this.itemErrorCount = 0;
+        this.assisted = false;
 
         // Routage des mini-jeux
         if (this.currentGame === 'complete') {
@@ -458,6 +471,8 @@ const GameEngine = {
             slot.classList.add('error');
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => {
                 btn.classList.remove('wrong');
@@ -530,6 +545,8 @@ const GameEngine = {
             card.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => {
                 card.classList.remove('wrong');
@@ -630,6 +647,8 @@ const GameEngine = {
             btn.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => btn.classList.remove('wrong'), 600);
         }
@@ -774,6 +793,8 @@ const GameEngine = {
             subText.textContent = spokenText ? `Tu as dit : "${spokenText}"` : "Je n'ai pas compris...";
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
 
             setTimeout(() => {
@@ -902,6 +923,8 @@ const GameEngine = {
 
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
 
             setTimeout(() => {
@@ -1004,6 +1027,8 @@ const GameEngine = {
             }
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => {
                 btn.classList.remove('wrong');
@@ -1123,6 +1148,8 @@ const GameEngine = {
             btn.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => btn.classList.remove('wrong'), 600);
         }
@@ -1172,6 +1199,9 @@ const GameEngine = {
         const zone = document.getElementById('comp-question-zone');
         if (!zone) return;
         zone.innerHTML = '';
+        // L'aide se réévalue par question.
+        this.itemErrorCount = 0;
+        this.assisted = false;
 
         const q = this.compQuestions[this.compIndex];
         const total = this.compQuestions.length;
@@ -1229,6 +1259,8 @@ const GameEngine = {
             btn.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => btn.classList.remove('wrong'), 700);
         }
@@ -1256,6 +1288,7 @@ const GameEngine = {
         item.words.forEach((word, i) => {
             const chip = document.createElement('button');
             chip.textContent = word;
+            chip.dataset.idx = i;
             chip.style.cssText = 'font-size:22px;font-weight:600;color:#1e293b;background:#ffffff;border:2px solid #e2e8f0;border-radius:12px;padding:8px 14px;cursor:pointer;transition:all 0.2s;';
             chip.onclick = () => this.handleCoquilleChoice(i, chip, item);
             sentenceDiv.appendChild(chip);
@@ -1299,6 +1332,8 @@ const GameEngine = {
             chip.style.color = '#ef4444';
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => {
                 chip.style.background = '#ffffff';
@@ -1371,6 +1406,8 @@ const GameEngine = {
             btn.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
+            this.itemErrorCount = (this.itemErrorCount || 0) + 1;
+            this._autoAssist();
             this.showFeedback('❌');
             setTimeout(() => {
                 btn.classList.remove('wrong');
@@ -1443,12 +1480,9 @@ const GameEngine = {
 
         document.getElementById('game-progress-fill').style.width = '100%';
 
-        const reward = ProfileManager.recordLevelComplete(
-            this.currentProfile.id,
-            this.currentLevel.id,
-            this.score,
-            stars,
-            this.currentLang
+        const reward = (this.challengeMode
+            ? ProfileManager.recordChallenge(this.currentProfile.id, this.score, stars, this.currentLang)
+            : ProfileManager.recordLevelComplete(this.currentProfile.id, this.currentLevel.id, this.score, stars, this.currentLang)
         ) || {};
 
         const correct = Math.min(this.correctFirstTry, total);
@@ -1468,11 +1502,18 @@ const GameEngine = {
             const chips = reward.newBadges.map(b => `<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border:2px solid #fcd34d;border-radius:14px;padding:6px 12px;font-size:15px;font-weight:700;color:#92400e">${b.emoji} ${en ? b.nameEn : b.nameFr}</span>`).join(' ');
             bonusHtml += `<div style="margin-top:14px;font-size:15px;color:#475569;font-weight:700">${en ? 'New badge!' : 'Nouveau badge !'}</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${chips}</div>`;
         }
+        if (this.challengeMode && reward.challengeBonus) {
+            bonusHtml += `<div style="margin-top:12px;font-size:17px;font-weight:700;color:#10b981">🎁 ${en ? 'Daily bonus' : 'Bonus du jour'} : +${reward.challengeBonus} 🪙</div>`;
+        }
 
+        const titleTxt = this.challengeMode
+            ? (en ? 'Daily challenge done!' : 'Défi du jour réussi !')
+            : (en ? 'Level complete!' : 'Niveau complété !');
+        const headEmoji = this.challengeMode ? '🎲' : '🏆';
         area.innerHTML = `
             <div style="text-align:center;animation:pop 0.5s">
-                <div style="font-size:100px;margin-bottom:12px">🏆</div>
-                <h2 style="font-size:32px;margin-bottom:10px">${en ? 'Level complete!' : 'Niveau complété !'}</h2>
+                <div style="font-size:100px;margin-bottom:12px">${headEmoji}</div>
+                <h2 style="font-size:32px;margin-bottom:10px">${titleTxt}</h2>
                 <div style="font-size:50px;margin:16px 0">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
                 <p style="font-size:22px;color:#475569">${correct}/${total} (${percent}%)</p>
                 <p style="font-size:20px;color:#64748b;margin-top:8px">Score : ${this.score}</p>
@@ -1490,6 +1531,74 @@ const GameEngine = {
         }
 
         this.createConfetti();
+    },
+
+    // Différenciation : après 2 erreurs sur le même item, le tuteur propose
+    // automatiquement un coup de pouce adapté au mini-jeu (surbrillance de la
+    // bonne réponse, prononciation ralentie, amorce de mot...).
+    _autoAssist() {
+        if (this.assisted || (this.itemErrorCount || 0) < 2) return;
+        this.assisted = true;
+        const lang = this.currentLang;
+        const item = this.currentLevel.items[this.currentItemIndex];
+        const glow = (predicate) => {
+            document.querySelectorAll('#game-area .choice-btn, #game-area .match-card, #game-area .syllable-btn')
+                .forEach(b => { if (predicate((b.textContent || '').trim())) b.classList.add('hint-glow'); });
+        };
+
+        switch (this.currentGame) {
+            case 'complete': {
+                const exp = item.correct !== undefined ? item.correct : item.target[item.missing];
+                glow(t => t === exp);
+                AudioEngine.speakSlow(item.hint || item.target, lang);
+                break;
+            }
+            case 'match':
+                glow(t => t === item.correct);
+                AudioEngine.speakSlow(item.correct, lang);
+                break;
+            case 'vocab':
+            case 'accord':
+                glow(t => t === item.correct);
+                break;
+            case 'comprehension': {
+                const q = this.compQuestions && this.compQuestions[this.compIndex];
+                if (q) glow(t => t === q.correct);
+                break;
+            }
+            case 'syllable': {
+                const next = this.syllableSequence[this.currentSyllableIndex];
+                glow(t => t === next);
+                break;
+            }
+            case 'pronounce':
+                AudioEngine.speakSlow(item.word || item.target, lang);
+                break;
+            case 'dictation': {
+                const inp = document.getElementById('dictation-input');
+                const word = String(item.word || item.target || '');
+                if (inp) inp.placeholder = word.slice(0, Math.ceil(word.length / 3)) + '…';
+                AudioEngine.speakSlow(word, lang);
+                break;
+            }
+            case 'morpho': {
+                const seg = this.morphoSegments[this.morphoIndex];
+                const labels = lang === 'en'
+                    ? { prefix: 'Prefix', radical: 'Root', suffix: 'Suffix' }
+                    : { prefix: 'Préfixe', radical: 'Radical', suffix: 'Suffixe' };
+                if (seg) glow(t => t === labels[seg.type]);
+                break;
+            }
+            case 'coquille': {
+                const chip = document.querySelector('#game-area [data-idx="' + item.errorIndex + '"]');
+                if (chip) chip.classList.add('hint-glow');
+                break;
+            }
+        }
+
+        if (typeof TutorEngine !== 'undefined') {
+            TutorEngine.show(lang === 'en' ? 'Here is a little hint! 💡' : 'Voici un petit indice ! 💡');
+        }
     },
 
     // Félicitation parlée VARIÉE (anti-lassitude) via la mascotte.

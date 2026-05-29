@@ -257,5 +257,71 @@ function getGameData(lang) {
         }
     ];
 
+    // --- Niveaux de dictée générés depuis la banque MEQ complète ---
+    // Marqués "alwaysUnlocked" : ce sont des niveaux d'entraînement bonus,
+    // accessibles dès que l'enfant atteint le cycle correspondant.
+    function appendMeqDictation(levels, words, startId, isEn) {
+        if (typeof MEQ_WORDS === 'undefined' || !words) return;
+        let id = startId;
+        [1, 2, 3].forEach(cycleNum => {
+            const bank = words['cycle' + cycleNum] || [];
+            const frPrefix = cycleNum === 1 ? '1er' : cycleNum + 'e';
+            for (let n = 0; n < 2; n++) {
+                const slice = bank.slice(n * 5, n * 5 + 5);
+                if (slice.length < 3) continue;
+                levels.push({
+                    id: id++,
+                    cycle: cycleNum,
+                    cycleName: isEn ? ('Cycle ' + cycleNum + ' - MEQ Words') : (frPrefix + ' Cycle - Mots MEQ'),
+                    miniGame: 'dictation',
+                    alwaysUnlocked: true,
+                    items: slice.map(w => ({ target: w, word: w }))
+                });
+            }
+        });
+    }
+    if (lang === 'en') appendMeqDictation(dataEN, MEQ_WORDS && MEQ_WORDS.en, 13, true);
+    else appendMeqDictation(dataFR, MEQ_WORDS && MEQ_WORDS.fr, 20, false);
+
     return { levels: lang === 'en' ? dataEN : dataFR };
+}
+
+// Construit un niveau de dictée DYNAMIQUE pour le Défi du jour, à partir de la
+// banque MEQ. Le tirage est déterministe selon la date (mêmes mots toute la
+// journée) et adapté à l'âge de l'enfant.
+function buildDailyChallenge(profile, dateStr) {
+    const lang = profile.lang === 'en' ? 'en' : 'fr';
+    if (typeof MEQ_WORDS === 'undefined' || !MEQ_WORDS[lang]) return null;
+
+    const age = parseInt(profile.age) || 8;
+    let cycles = ['cycle1'];
+    if (age >= 9) cycles.push('cycle2');
+    if (age >= 11) cycles.push('cycle3');
+
+    const pool = [];
+    cycles.forEach(c => (MEQ_WORDS[lang][c] || []).forEach(w => pool.push(w)));
+    if (!pool.length) return null;
+
+    // Générateur pseudo-aléatoire déterministe (seed = date).
+    let seed = 0;
+    for (let i = 0; i < dateStr.length; i++) seed = (seed * 31 + dateStr.charCodeAt(i)) >>> 0;
+    const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0xffffffff; };
+
+    const chosen = [];
+    const used = new Set();
+    while (chosen.length < 5 && used.size < pool.length) {
+        const idx = Math.floor(rng() * pool.length);
+        if (used.has(idx)) continue;
+        used.add(idx);
+        chosen.push(pool[idx]);
+    }
+
+    return {
+        id: 'daily',
+        cycle: 0,
+        cycleName: lang === 'en' ? 'Daily Challenge' : 'Défi du jour',
+        miniGame: 'dictation',
+        isChallenge: true,
+        items: chosen.map(w => ({ target: w, word: w }))
+    };
 }
