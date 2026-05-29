@@ -14,11 +14,11 @@ function getDeviceId() {
 }
 
 window.onload = () => {
-    // Purge unique de l'ancien cache audio (mots mis en cache avec la mauvaise
-    // prononciation anglaise avant le correctif de langue).
+    // Purge des anciens caches audio (mots stockés avant le correctif de voix/
+    // langue). On garde uniquement le format courant gq_tts3_.
     try {
         Object.keys(localStorage).forEach(k => {
-            if (k.startsWith('gq_audio_')) localStorage.removeItem(k);
+            if (k.startsWith('gq_audio_') || k.startsWith('gq_tts_')) localStorage.removeItem(k);
         });
     } catch (e) {}
 
