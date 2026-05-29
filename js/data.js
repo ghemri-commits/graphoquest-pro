@@ -121,6 +121,41 @@ function getGameData(lang) {
                 { sentence: 'La clé de mes réussites ___ le travail.', correct: 'est', options: ['est', 'sont'], hint: 'Le sujet est "la clé", singulier' },
                 { sentence: 'Des feuilles ___ par le vent volent loin.', correct: 'emportées', options: ['emporté', 'emportée', 'emportées'], hint: 'Accord avec "des feuilles" (féminin pluriel)' }
             ]
+        },
+
+        // ----- Mini-jeux avancés (Morphologie, Compréhension, Coquilles, Vocabulaire) -----
+        {
+            id: 16, cycle: 2, cycleName: '2e Cycle - Morphologie', miniGame: 'morpho', items: [
+                { word: 'recommencer', segments: [{ text: 're', type: 'prefix' }, { text: 'commenc', type: 'radical' }, { text: 'er', type: 'suffix' }], hint: 'Préfixe + radical + terminaison' },
+                { word: 'malheureux', segments: [{ text: 'mal', type: 'prefix' }, { text: 'heur', type: 'radical' }, { text: 'eux', type: 'suffix' }], hint: 'Le contraire de heureux' },
+                { word: 'chanteuse', segments: [{ text: 'chant', type: 'radical' }, { text: 'euse', type: 'suffix' }], hint: 'Celle qui chante' }
+            ]
+        },
+        {
+            id: 17, cycle: 3, cycleName: '3e Cycle - Compréhension', miniGame: 'comprehension', items: [
+                {
+                    text: "Léa habite à Québec. Chaque matin, elle marche jusqu'à l'école avec son chien Filou. En hiver, la neige recouvre les trottoirs et Léa met sa grosse tuque rouge pour rester au chaud.",
+                    questions: [
+                        { q: 'Où habite Léa ?', options: ['À Montréal', 'À Québec', 'À Gatineau'], correct: 'À Québec' },
+                        { q: 'Avec qui marche-t-elle vers l\'école ?', options: ['Son chat', 'Son chien', 'Sa sœur'], correct: 'Son chien' },
+                        { q: 'Que met Léa en hiver ?', options: ['Une tuque rouge', 'Un chapeau bleu', 'Des lunettes'], correct: 'Une tuque rouge' }
+                    ]
+                }
+            ]
+        },
+        {
+            id: 18, cycle: 3, cycleName: '3e Cycle - Chasse aux coquilles', miniGame: 'coquille', items: [
+                { words: ['Les', 'oiseau', 'chantent', 'dans', 'l\'arbre.'], errorIndex: 1, correct: 'oiseaux', hint: 'Pluriel du nom' },
+                { words: ['Elle', 'mange', 'une', 'pome', 'rouge.'], errorIndex: 3, correct: 'pomme', hint: 'Orthographe du fruit' },
+                { words: ['Nous', 'allon', 'à', 'la', 'piscine.'], errorIndex: 1, correct: 'allons', hint: 'Terminaison du verbe avec « nous »' }
+            ]
+        },
+        {
+            id: 19, cycle: 3, cycleName: '3e Cycle - Vocabulaire', miniGame: 'vocab', items: [
+                { prompt: 'Trouve le synonyme de « content »', options: ['triste', 'heureux', 'fâché', 'fatigué'], correct: 'heureux' },
+                { prompt: 'Trouve le contraire de « grand »', options: ['petit', 'gros', 'long', 'haut'], correct: 'petit' },
+                { prompt: 'Que veut dire « rapide » ?', options: ['lent', 'vite', 'lourd', 'calme'], correct: 'vite' }
+            ]
         }
     ];
 
@@ -183,6 +218,41 @@ function getGameData(lang) {
             id: 8, cycle: 3, cycleName: '3rd Cycle - Pronunciation', miniGame: 'pronounce', items: [
                 { target: 'vocabulary', word: 'vocabulary', hint: 'The words of a language' },
                 { target: 'understanding', word: 'understanding', hint: 'The ability to comprehend' }
+            ]
+        },
+
+        // ----- Advanced mini-games (Morphology, Comprehension, Typos, Vocabulary) -----
+        {
+            id: 9, cycle: 2, cycleName: '2nd Cycle - Morphology', miniGame: 'morpho', items: [
+                { word: 'unhappy', segments: [{ text: 'un', type: 'prefix' }, { text: 'happy', type: 'radical' }], hint: 'The opposite of happy' },
+                { word: 'teacher', segments: [{ text: 'teach', type: 'radical' }, { text: 'er', type: 'suffix' }], hint: 'A person who teaches' },
+                { word: 'replaying', segments: [{ text: 're', type: 'prefix' }, { text: 'play', type: 'radical' }, { text: 'ing', type: 'suffix' }], hint: 'Playing again' }
+            ]
+        },
+        {
+            id: 10, cycle: 3, cycleName: '3rd Cycle - Comprehension', miniGame: 'comprehension', items: [
+                {
+                    text: 'Tom lives on a small farm. Every morning he feeds the chickens and collects fresh eggs. His favourite animal is a brown horse named Coco.',
+                    questions: [
+                        { q: 'Where does Tom live?', options: ['In a city', 'On a farm', 'At the beach'], correct: 'On a farm' },
+                        { q: 'What does he collect?', options: ['Eggs', 'Apples', 'Flowers'], correct: 'Eggs' },
+                        { q: "What is his horse's name?", options: ['Coco', 'Filou', 'Spot'], correct: 'Coco' }
+                    ]
+                }
+            ]
+        },
+        {
+            id: 11, cycle: 3, cycleName: '3rd Cycle - Typo Hunt', miniGame: 'coquille', items: [
+                { words: ['She', 'have', 'two', 'cats.'], errorIndex: 1, correct: 'has', hint: 'Verb agreement with « she »' },
+                { words: ['The', 'childs', 'are', 'playing.'], errorIndex: 1, correct: 'children', hint: 'Irregular plural' },
+                { words: ['I', 'like', 'to', 'eat', 'appel.'], errorIndex: 4, correct: 'apple', hint: 'Spelling of the fruit' }
+            ]
+        },
+        {
+            id: 12, cycle: 3, cycleName: '3rd Cycle - Vocabulary', miniGame: 'vocab', items: [
+                { prompt: 'Synonym of « big »', options: ['small', 'large', 'tiny', 'thin'], correct: 'large' },
+                { prompt: 'Opposite of « happy »', options: ['glad', 'sad', 'kind', 'fast'], correct: 'sad' },
+                { prompt: 'What does « quick » mean?', options: ['slow', 'fast', 'heavy', 'quiet'], correct: 'fast' }
             ]
         }
     ];

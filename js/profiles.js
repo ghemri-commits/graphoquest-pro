@@ -137,7 +137,8 @@ const ProfileManager = {
         profile.totalScore += score;
 
         const nextLevel = levelId + 1;
-        if (nextLevel <= 25) {
+        const levelExists = getGameData(lang === 'en' ? 'en' : 'fr').levels.some(l => l.id === nextLevel);
+        if (levelExists) {
             const key = lang === 'en' ? 'unlockedLevelsEn' : 'unlockedLevelsFr';
             if (!profile[key]) profile[key] = [1];
             if (!profile[key].includes(nextLevel)) {

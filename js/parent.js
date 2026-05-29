@@ -22,6 +22,16 @@ const ParentPortal = {
 
     checkPin(input) { return input === this.getPin(); },
 
+    /* ===== HELPERS NIVEAUX (dynamiques selon les données réelles) ===== */
+    _levelIdsForLang(lang) {
+        const l = lang === 'en' ? 'en' : 'fr';
+        return getGameData(l).levels.map(level => level.id);
+    },
+
+    _totalForLang(lang) {
+        return this._levelIdsForLang(lang === 'both' ? 'fr' : lang).length;
+    },
+
     /* ===== PROGRESSION — tous appareils via Firestore ===== */
     renderProgress() {
         const container = document.getElementById('parent-progress-list');
@@ -38,7 +48,8 @@ const ParentPortal = {
                 container.innerHTML = '';
                 profiles.forEach(p => {
                     const completed = Object.keys(p.progress || {}).length;
-                    const percent = Math.round((completed / 25) * 100);
+                    const totalLevels = this._totalForLang(p.lang);
+                    const percent = Math.round((completed / totalLevels) * 100);
                     const lastKey = Object.keys(p.progress || {}).pop();
                     const totalAttempts = Object.values(p.progress || {}).reduce((a,b) => a + (b.attempts||0), 0);
                     const totalStars = Object.values(p.progress || {}).reduce((a,b) => a + (b.stars||0), 0);
@@ -61,7 +72,7 @@ const ParentPortal = {
 
                     const stats = document.createElement('div');
                     stats.className = 'progress-item-stats';
-                    stats.innerHTML = `<span>🎯 ${completed}/25 niveaux</span><span>🔥 ${totalAttempts} essais</span><span>🏆 ${totalStars} étoiles</span>`;
+                    stats.innerHTML = `<span>🎯 ${completed}/${totalLevels} niveaux</span><span>🔥 ${totalAttempts} essais</span><span>🏆 ${totalStars} étoiles</span>`;
 
                     const barBg = document.createElement('div');
                     barBg.className = 'progress-bar-bg';
@@ -93,7 +104,7 @@ const ParentPortal = {
                 }
                 local.forEach(p => {
                     const completed = Object.keys(p.progress||{}).length;
-                    const percent = Math.round((completed/25)*100);
+                    const percent = Math.round((completed/this._totalForLang(p.lang))*100);
                     const item = document.createElement('div');
                     item.className = 'progress-item';
                     const header = document.createElement('div');
@@ -170,7 +181,8 @@ const ParentPortal = {
     _fillGrid(containerId, profileId, lang, unlocked) {
         const grid = document.getElementById(containerId);
         grid.innerHTML = '';
-        for (let i = 1; i <= 25; i++) {
+        const ids = this._levelIdsForLang(lang);
+        ids.forEach(i => {
             const isUnlocked = unlocked.includes(i);
             const div = document.createElement('div');
             div.className = `lvl-toggle ${isUnlocked ? 'unlocked' : 'locked'}`;
@@ -183,7 +195,7 @@ const ParentPortal = {
                 div.onclick = () => this.toggleLevel(profileId, lang, i);
             }
             grid.appendChild(div);
-        }
+        });
     },
 
     toggleLevel(profileId, lang, levelId) {
@@ -204,7 +216,7 @@ const ParentPortal = {
     },
 
     unlockAll(profileId, lang) {
-        const levels = Array.from({length: 25}, (_, i) => i + 1);
+        const levels = this._levelIdsForLang(lang);
         ProfileManager.setUnlockedLevelsByLang(profileId, lang, levels);
         this.renderLevelManager();
     },
@@ -266,7 +278,7 @@ const ParentPortal = {
 
             const metaDiv = document.createElement('div');
             metaDiv.className = 'parent-profile-meta';
-            metaDiv.textContent = `${p.age} ans · ${Object.keys(p.progress||{}).length}/25 niveaux · ⭐ ${p.totalScore||0}`;
+            metaDiv.textContent = `${p.age} ans · ${Object.keys(p.progress||{}).length}/${this._totalForLang(p.lang)} niveaux · ⭐ ${p.totalScore||0}`;
 
             info.appendChild(nameDiv);
             info.appendChild(metaDiv);

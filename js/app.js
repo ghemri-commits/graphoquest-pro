@@ -231,7 +231,11 @@ function showDashboard() {
             // Affichage du type de mini-jeu sous forme de badge discret
             const gameBadge = document.createElement('span');
             gameBadge.style.cssText = 'font-size:9px; font-weight:600; text-transform:uppercase; margin-top:2px;';
-            gameBadge.textContent = level.miniGame === 'accord' ? 'Gram' : level.miniGame === 'dictation' ? 'Dict' : level.miniGame === 'pronounce' ? 'Oral' : 'Phon';
+            const badgeMap = {
+                accord: 'Gram', dictation: 'Dict', pronounce: 'Oral',
+                morpho: 'Morph', comprehension: 'Lect', coquille: 'Faute', vocab: 'Voc'
+            };
+            gameBadge.textContent = badgeMap[level.miniGame] || 'Phon';
 
             node.innerHTML = `
                 <div class="node-num" style="font-size:16px;">${levelId}</div>

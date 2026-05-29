@@ -349,6 +349,18 @@ const GameEngine = {
         } else if (this.currentGame === 'accord') {
             area.classList.add('mg-accord');
             this.renderAccord(item);
+        } else if (this.currentGame === 'morpho') {
+            area.classList.add('mg-morpho');
+            this.renderMorpho(item);
+        } else if (this.currentGame === 'comprehension') {
+            area.classList.add('mg-comprehension');
+            this.renderComprehension(item);
+        } else if (this.currentGame === 'coquille') {
+            area.classList.add('mg-coquille');
+            this.renderCoquille(item);
+        } else if (this.currentGame === 'vocab') {
+            area.classList.add('mg-vocab');
+            this.renderVocab(item);
         }
     },
 
@@ -999,6 +1011,363 @@ const GameEngine = {
                 }
                 this.isProcessing = false;
             }, 1000);
+        }
+
+        document.getElementById('current-score').textContent = this.score;
+    },
+
+    /* ===== JEU 7 : MORPHO-TRI (RADICAL / PRÉFIXE / SUFFIXE) ===== */
+    renderMorpho(item) {
+        const area = document.getElementById('game-area');
+        const en = this.currentLang === 'en';
+
+        const container = document.createElement('div');
+        container.className = 'morpho-container';
+        container.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:18px;width:100%;max-width:520px;margin:0 auto;';
+
+        const title = document.createElement('h3');
+        title.textContent = en ? 'Classify each word part:' : 'Classe chaque partie du mot :';
+        title.style.cssText = 'font-size:20px;color:#475569;margin:0;font-weight:700;';
+        container.appendChild(title);
+
+        const wordCard = document.createElement('div');
+        wordCard.textContent = item.word;
+        wordCard.style.cssText = 'font-size:34px;font-weight:700;color:#1e293b;background:#ffffff;padding:14px 32px;border-radius:18px;border:2px solid #e2e8f0;box-shadow:0 6px 20px rgba(0,0,0,0.05);';
+        container.appendChild(wordCard);
+
+        const audioBtn = document.createElement('button');
+        audioBtn.className = 'btn-audio-large';
+        audioBtn.innerHTML = '🔊 <span>' + (en ? 'Listen' : 'Écouter') + '</span>';
+        audioBtn.onclick = () => AudioEngine.play(item.word, false, this.currentLang);
+        container.appendChild(audioBtn);
+
+        // Bandeau des parties à classer (dans l'ordre du mot)
+        const chipsRow = document.createElement('div');
+        chipsRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:6px 0;';
+        this.morphoSegments = item.segments;
+        this.morphoIndex = 0;
+        this.morphoChips = [];
+
+        const colors = { prefix: '#f59e0b', radical: '#6366f1', suffix: '#10b981' };
+        item.segments.forEach((seg, i) => {
+            const chip = document.createElement('div');
+            chip.textContent = seg.text;
+            chip.style.cssText = 'font-size:22px;font-weight:700;padding:10px 18px;border-radius:14px;background:#f1f5f9;border:2px dashed #cbd5e1;color:#334155;transition:all 0.25s;';
+            if (i === 0) chip.style.boxShadow = '0 0 0 4px rgba(99,102,241,0.25)';
+            chipsRow.appendChild(chip);
+            this.morphoChips.push(chip);
+        });
+        container.appendChild(chipsRow);
+
+        // Boutons de catégorie
+        const labels = en
+            ? { prefix: 'Prefix', radical: 'Root', suffix: 'Suffix' }
+            : { prefix: 'Préfixe', radical: 'Radical', suffix: 'Suffixe' };
+        const catRow = document.createElement('div');
+        catRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px;';
+        ['prefix', 'radical', 'suffix'].forEach(type => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = labels[type];
+            btn.style.cssText = `min-width:120px;padding:12px 16px;font-size:17px;border-radius:14px;border:2px solid ${colors[type]};color:${colors[type]};background:#fff;font-weight:700;`;
+            btn.onclick = () => this.handleMorphoChoice(type, btn, colors, labels);
+            catRow.appendChild(btn);
+        });
+        container.appendChild(catRow);
+
+        if (item.hint) {
+            const hintText = document.createElement('p');
+            hintText.innerHTML = `💡 <em>${item.hint}</em>`;
+            hintText.style.cssText = 'font-size:14px;color:#64748b;margin-top:6px;';
+            container.appendChild(hintText);
+        }
+
+        area.appendChild(container);
+    },
+
+    handleMorphoChoice(type, btn, colors) {
+        if (this.isProcessing) return;
+
+        const seg = this.morphoSegments[this.morphoIndex];
+        const chip = this.morphoChips[this.morphoIndex];
+
+        if (type === seg.type) {
+            AudioEngine.vibrate('correct');
+            chip.style.background = colors[seg.type];
+            chip.style.borderColor = colors[seg.type];
+            chip.style.borderStyle = 'solid';
+            chip.style.color = '#fff';
+            chip.style.boxShadow = 'none';
+
+            this.morphoIndex++;
+            const next = this.morphoChips[this.morphoIndex];
+            if (next) next.style.boxShadow = '0 0 0 4px rgba(99,102,241,0.25)';
+
+            if (this.morphoIndex >= this.morphoSegments.length) {
+                this.isProcessing = true;
+                if (!this.itemHasError) this.correctFirstTry++;
+                this.streak++;
+                this.score += 15 + (this.streak * 2);
+                this.showFeedback('🌟');
+                setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Well done!' : 'Bien joué !', false, this.currentLang), 500);
+                this.createParticles(btn);
+                const total = this.currentLevel.items.length;
+                document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+                setTimeout(() => this.nextItem(), 1600);
+            }
+        } else {
+            AudioEngine.vibrate('error');
+            btn.classList.add('wrong');
+            this.streak = 0;
+            this.itemHasError = true;
+            this.showFeedback('❌');
+            setTimeout(() => btn.classList.remove('wrong'), 600);
+        }
+
+        document.getElementById('current-score').textContent = this.score;
+    },
+
+    /* ===== JEU 8 : COMPRÉHENSION-FLASH (TEXTE + QCM) ===== */
+    renderComprehension(item) {
+        const area = document.getElementById('game-area');
+        const en = this.currentLang === 'en';
+
+        const container = document.createElement('div');
+        container.className = 'comprehension-container';
+        container.style.cssText = 'display:flex;flex-direction:column;align-items:stretch;gap:16px;width:100%;max-width:560px;margin:0 auto;';
+
+        const title = document.createElement('h3');
+        title.textContent = en ? 'Read, then answer:' : 'Lis le texte, puis réponds :';
+        title.style.cssText = 'font-size:20px;color:#475569;margin:0;font-weight:700;text-align:center;';
+        container.appendChild(title);
+
+        const textCard = document.createElement('div');
+        textCard.textContent = item.text;
+        textCard.style.cssText = 'font-size:18px;line-height:1.7;color:#1e293b;background:#ffffff;padding:18px 20px;border-radius:18px;border:1px solid #e2e8f0;box-shadow:0 6px 20px rgba(0,0,0,0.05);';
+        container.appendChild(textCard);
+
+        const audioBtn = document.createElement('button');
+        audioBtn.className = 'btn-audio-large';
+        audioBtn.style.cssText = 'align-self:center;';
+        audioBtn.innerHTML = '🔊 <span>' + (en ? 'Listen to the text' : 'Écouter le texte') + '</span>';
+        audioBtn.onclick = () => AudioEngine.play(item.text, false, this.currentLang);
+        container.appendChild(audioBtn);
+
+        const qZone = document.createElement('div');
+        qZone.id = 'comp-question-zone';
+        qZone.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:6px;';
+        container.appendChild(qZone);
+
+        area.appendChild(container);
+
+        this.compQuestions = item.questions;
+        this.compIndex = 0;
+        this._renderCompQuestion();
+    },
+
+    _renderCompQuestion() {
+        const zone = document.getElementById('comp-question-zone');
+        if (!zone) return;
+        zone.innerHTML = '';
+
+        const q = this.compQuestions[this.compIndex];
+        const total = this.compQuestions.length;
+
+        const counter = document.createElement('div');
+        counter.textContent = `${this.currentLang === 'en' ? 'Question' : 'Question'} ${this.compIndex + 1}/${total}`;
+        counter.style.cssText = 'font-size:14px;color:#94a3b8;font-weight:700;text-align:center;';
+        zone.appendChild(counter);
+
+        const qText = document.createElement('div');
+        qText.textContent = q.q;
+        qText.style.cssText = 'font-size:19px;font-weight:700;color:#1e293b;text-align:center;';
+        zone.appendChild(qText);
+
+        const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+        shuffled.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt;
+            btn.style.cssText = 'width:100%;padding:14px 16px;font-size:17px;border-radius:14px;';
+            btn.onclick = () => this.handleCompChoice(opt, btn, q.correct);
+            zone.appendChild(btn);
+        });
+    },
+
+    handleCompChoice(choice, btn, correct) {
+        if (this.isProcessing) return;
+
+        if (choice === correct) {
+            AudioEngine.vibrate('correct');
+            btn.classList.add('correct');
+            this.streak++;
+            this.score += 10 + (this.streak * 2);
+            this.showFeedback('✅');
+            this.compIndex++;
+
+            if (this.compIndex >= this.compQuestions.length) {
+                this.isProcessing = true;
+                if (!this.itemHasError) this.correctFirstTry++;
+                setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Great reading!' : 'Bravo la lecture !', false, this.currentLang), 400);
+                this.createParticles(btn);
+                const total = this.currentLevel.items.length;
+                document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+                setTimeout(() => this.nextItem(), 1500);
+            } else {
+                setTimeout(() => this._renderCompQuestion(), 700);
+            }
+        } else {
+            AudioEngine.vibrate('error');
+            btn.classList.add('wrong');
+            this.streak = 0;
+            this.itemHasError = true;
+            this.showFeedback('❌');
+            setTimeout(() => btn.classList.remove('wrong'), 700);
+        }
+
+        document.getElementById('current-score').textContent = this.score;
+    },
+
+    /* ===== JEU 9 : CHASSE AUX COQUILLES (TROUVE L'ERREUR) ===== */
+    renderCoquille(item) {
+        const area = document.getElementById('game-area');
+        const en = this.currentLang === 'en';
+
+        const container = document.createElement('div');
+        container.className = 'coquille-container';
+        container.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:20px;width:100%;max-width:520px;margin:0 auto;';
+
+        const title = document.createElement('h3');
+        title.textContent = en ? 'Tap the word with the mistake:' : 'Touche le mot qui contient une erreur :';
+        title.style.cssText = 'font-size:20px;color:#475569;margin:0;font-weight:700;text-align:center;';
+        container.appendChild(title);
+
+        const sentenceDiv = document.createElement('div');
+        sentenceDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;padding:20px;';
+
+        item.words.forEach((word, i) => {
+            const chip = document.createElement('button');
+            chip.textContent = word;
+            chip.style.cssText = 'font-size:22px;font-weight:600;color:#1e293b;background:#ffffff;border:2px solid #e2e8f0;border-radius:12px;padding:8px 14px;cursor:pointer;transition:all 0.2s;';
+            chip.onclick = () => this.handleCoquilleChoice(i, chip, item);
+            sentenceDiv.appendChild(chip);
+        });
+        container.appendChild(sentenceDiv);
+
+        if (item.hint) {
+            const hintText = document.createElement('p');
+            hintText.innerHTML = `💡 <em>${item.hint}</em>`;
+            hintText.style.cssText = 'font-size:14px;color:#64748b;';
+            container.appendChild(hintText);
+        }
+
+        area.appendChild(container);
+    },
+
+    handleCoquilleChoice(index, chip, item) {
+        if (this.isProcessing) return;
+
+        if (index === item.errorIndex) {
+            this.isProcessing = true;
+            AudioEngine.vibrate('correct');
+            chip.textContent = item.correct;
+            chip.style.background = '#10b981';
+            chip.style.borderColor = '#10b981';
+            chip.style.color = '#fff';
+
+            if (!this.itemHasError) this.correctFirstTry++;
+            this.streak++;
+            this.score += 15 + (this.streak * 2);
+            this.showFeedback('✅');
+            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Good eye!' : 'Bien vu !', false, this.currentLang), 500);
+            this.createParticles(chip);
+            const total = this.currentLevel.items.length;
+            document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+            setTimeout(() => this.nextItem(), 1700);
+        } else {
+            AudioEngine.vibrate('error');
+            chip.style.background = '#fef2f2';
+            chip.style.borderColor = '#ef4444';
+            chip.style.color = '#ef4444';
+            this.streak = 0;
+            this.itemHasError = true;
+            this.showFeedback('❌');
+            setTimeout(() => {
+                chip.style.background = '#ffffff';
+                chip.style.borderColor = '#e2e8f0';
+                chip.style.color = '#1e293b';
+            }, 800);
+        }
+
+        document.getElementById('current-score').textContent = this.score;
+    },
+
+    /* ===== JEU 10 : VOCABULAIRE EN CONTEXTE (SYNONYMES / DÉFINITIONS) ===== */
+    renderVocab(item) {
+        const area = document.getElementById('game-area');
+        const en = this.currentLang === 'en';
+
+        const container = document.createElement('div');
+        container.className = 'vocab-container';
+        container.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:20px;width:100%;max-width:480px;margin:0 auto;';
+
+        const promptCard = document.createElement('div');
+        promptCard.textContent = item.prompt;
+        promptCard.style.cssText = 'font-size:24px;font-weight:700;color:#1e293b;background:#ffffff;padding:20px 24px;border-radius:18px;border:2px solid #e2e8f0;box-shadow:0 6px 20px rgba(0,0,0,0.05);text-align:center;width:100%;';
+        container.appendChild(promptCard);
+
+        const audioBtn = document.createElement('button');
+        audioBtn.className = 'btn-audio-large';
+        audioBtn.innerHTML = '🔊 <span>' + (en ? 'Listen' : 'Écouter') + '</span>';
+        audioBtn.onclick = () => AudioEngine.play(item.prompt, false, this.currentLang);
+        container.appendChild(audioBtn);
+
+        const choicesDiv = document.createElement('div');
+        choicesDiv.style.cssText = 'display:flex;flex-direction:column;gap:12px;width:100%;';
+
+        const shuffled = [...item.options].sort(() => Math.random() - 0.5);
+        shuffled.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt;
+            btn.style.cssText = 'width:100%;padding:14px 16px;font-size:18px;border-radius:14px;';
+            btn.onclick = () => {
+                AudioEngine.play(opt, false, this.currentLang);
+                this.handleVocabChoice(opt, btn, item.correct);
+            };
+            choicesDiv.appendChild(btn);
+        });
+        container.appendChild(choicesDiv);
+
+        area.appendChild(container);
+    },
+
+    handleVocabChoice(choice, btn, correct) {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
+
+        if (choice === correct) {
+            AudioEngine.vibrate('correct');
+            btn.classList.add('correct');
+            if (!this.itemHasError) this.correctFirstTry++;
+            this.streak++;
+            this.score += 12 + (this.streak * 2);
+            this.showFeedback('✅');
+            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Brilliant!' : 'Bravo !', false, this.currentLang), 500);
+            this.createParticles(btn);
+            const total = this.currentLevel.items.length;
+            document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+            setTimeout(() => this.nextItem(), 1600);
+        } else {
+            AudioEngine.vibrate('error');
+            btn.classList.add('wrong');
+            this.streak = 0;
+            this.itemHasError = true;
+            this.showFeedback('❌');
+            setTimeout(() => {
+                btn.classList.remove('wrong');
+                this.isProcessing = false;
+            }, 800);
         }
 
         document.getElementById('current-score').textContent = this.score;
