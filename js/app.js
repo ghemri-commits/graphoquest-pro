@@ -3,9 +3,23 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
 }
 
+// Générateur d'identifiant unique d'appareil si non-géré par l'iPad
+function getDeviceId() {
+    let id = localStorage.getItem('gq_device_id');
+    if (!id) {
+        id = 'ipad_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+        localStorage.setItem('gq_device_id', id);
+    }
+    return id;
+}
+
 window.onload = () => {
+    // Initialise l'API Key ElevenLabs dans le champ d'input au chargement si présent
+    const key = ElevenLabsEngine.getApiKey();
+    const keyField = document.getElementById('elevenlabs-key');
+    if (keyField) keyField.value = key;
+
     setTimeout(() => {
-        // Sync depuis Firestore, puis afficher
         ProfileManager.syncFromCloud(() => {
             showScreen('profile-screen');
             renderProfiles();
@@ -13,14 +27,13 @@ window.onload = () => {
     }, 1500);
 };
 
-/* ===== PROFILS ===== */
+/* ===== GESTION DES PROFILS ===== */
 
 function renderProfiles() {
     const container = document.getElementById('profiles-list');
     const profiles = ProfileManager.getAll();
     container.innerHTML = '';
 
-    // Toujours afficher exactement 3 slots
     for (let i = 0; i < 3; i++) {
         const p = profiles[i];
         const card = document.createElement('div');
@@ -34,7 +47,7 @@ function renderProfiles() {
 
             const nameDiv = document.createElement('div');
             nameDiv.className = 'profile-name';
-            nameDiv.textContent = p.name; // textContent échappe automatiquement le HTML
+            nameDiv.textContent = p.name;
 
             const langFlag = p.lang === 'fr' ? '🇫🇷' : p.lang === 'en' ? '🇬🇧' : '🌍';
             const metaDiv1 = document.createElement('div');
@@ -50,7 +63,6 @@ function renderProfiles() {
             card.appendChild(metaDiv1);
             card.appendChild(metaDiv2);
 
-            // Sélection du profil uniquement — la suppression est dans le portail parent
             card.onclick = () => selectProfile(p.id);
 
         } else {
@@ -132,7 +144,7 @@ function logout() {
     renderProfiles();
 }
 
-/* ===== DASHBOARD ===== */
+/* ===== TABLEAU DE BORD (CARTE PAR CYCLES DU PRIMAIRE) ===== */
 
 function showDashboard() {
     const profile = ProfileManager.getCurrent();
@@ -141,39 +153,99 @@ function showDashboard() {
     document.getElementById('dash-avatar').textContent = profile.avatar;
     document.getElementById('dash-name').textContent = profile.name;
     document.getElementById('dash-level').textContent =
-        `⭐ ${profile.totalScore} · 🎯 ${Object.keys(profile.progress).length}/25`;
+        `⭐ ${profile.totalScore} · 🎯 ${Object.keys(profile.progress).length} réussis`;
 
     const map = document.getElementById('world-map');
     map.innerHTML = '';
 
-    const data = getGameData(profile.lang === 'both' ? 'fr' : profile.lang);
     const lang = profile.lang === 'both' ? 'fr' : profile.lang;
+    const data = getGameData(lang);
     const unlockedLevels = lang === 'en'
         ? (profile.unlockedLevelsEn || [1])
         : (profile.unlockedLevelsFr || [1]);
 
-    for (let i = 1; i <= 25; i++) {
-        const isUnlocked = unlockedLevels.includes(i);
-        const isCompleted = profile.progress[i];
-        const isCurrent = isUnlocked && !isCompleted;
+    // Groupement visuel des niveaux par cycle d'apprentissage québécois
+    const cyclesData = {};
+    data.levels.forEach(level => {
+        const cycleNum = level.cycle || 1;
+        const cycleTitle = level.cycleName || `Cycle ${cycleNum}`;
+        if (!cyclesData[cycleNum]) {
+            cyclesData[cycleNum] = { title: cycleTitle, levels: [] };
+        }
+        cyclesData[cycleNum].levels.push(level);
+    });
 
-        const node = document.createElement('div');
-        node.className = `world-node ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''} ${!isUnlocked ? 'locked' : ''}`;
+    // Rendu élégant d'iOS par groupement (Section Cards)
+    Object.keys(cyclesData).sort().forEach(cycleId => {
+        const cycle = cyclesData[cycleId];
 
-        let icon = '🔒';
-        if (isCompleted) icon = '⭐';
-        else if (isCurrent) icon = '🎯';
-        else if (isUnlocked) icon = '○';
+        const section = document.createElement('div');
+        section.className = 'cycle-section';
+        section.style.cssText = 'background:#f1f5f9; border-radius:24px; padding:20px; margin-bottom:24px; border: 1px solid #e2e8f0;';
 
-        node.innerHTML = `
-            <div class="node-num">${i}</div>
-            <div class="node-icon">${icon}</div>
-            <div class="node-stars">${isCompleted ? '⭐'.repeat(profile.progress[i].stars) : ''}</div>
-        `;
+        const sTitle = document.createElement('h3');
+        sTitle.textContent = cycle.title;
+        sTitle.style.cssText = 'font-size:18px; font-weight:700; color:#334155; margin:0 0 16px 4px; display:flex; align-items:center; gap:8px;';
 
-        if (isUnlocked) node.onclick = () => launchLevel(i);
-        map.appendChild(node);
-    }
+        // Icône visuelle par cycle
+        const cycleBadge = document.createElement('span');
+        cycleBadge.style.cssText = 'background:#6366f1; color:white; font-size:12px; padding:3px 8px; border-radius:12px;';
+        cycleBadge.textContent = `Cycle ${cycleId}`;
+        sTitle.appendChild(cycleBadge);
+        section.appendChild(sTitle);
+
+        const grid = document.createElement('div');
+        grid.style.cssText = 'display:grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap:12px;';
+
+        cycle.levels.forEach(level => {
+            const levelId = level.id;
+            const isUnlocked = unlockedLevels.includes(levelId);
+            const isCompleted = profile.progress[levelId];
+            const isCurrent = isUnlocked && !isCompleted;
+
+            const node = document.createElement('div');
+            node.className = `world-node ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''} ${!isUnlocked ? 'locked' : ''}`;
+            node.style.cssText = 'aspect-ratio:1; display:flex; flex-direction:column; justify-content:center; align-items:center; border-radius:18px; cursor:pointer; font-weight:700; transition: transform 0.2s; position:relative;';
+
+            let icon = '🔒';
+            if (isCompleted) {
+                icon = '⭐';
+                node.style.background = '#e0f2fe';
+                node.style.color = '#0369a1';
+            } else if (isCurrent) {
+                icon = '🎯';
+                node.style.background = '#4f46e5';
+                node.style.color = 'white';
+                node.style.transform = 'scale(1.05)';
+            } else if (isUnlocked) {
+                icon = '○';
+                node.style.background = '#f8fafc';
+                node.style.color = '#64748b';
+                node.style.border = '2px solid #cbd5e1';
+            } else {
+                node.style.background = '#cbd5e1';
+                node.style.color = '#94a3b8';
+                node.style.opacity = '0.7';
+            }
+
+            // Affichage du type de mini-jeu sous forme de badge discret
+            const gameBadge = document.createElement('span');
+            gameBadge.style.cssText = 'font-size:9px; font-weight:600; text-transform:uppercase; margin-top:2px;';
+            gameBadge.textContent = level.miniGame === 'accord' ? 'Gram' : level.miniGame === 'dictation' ? 'Dict' : level.miniGame === 'pronounce' ? 'Oral' : 'Phon';
+
+            node.innerHTML = `
+                <div class="node-num" style="font-size:16px;">${levelId}</div>
+                <div class="node-icon" style="font-size:14px;">${icon}</div>
+            `;
+            node.appendChild(gameBadge);
+
+            if (isUnlocked) node.onclick = () => launchLevel(levelId);
+            grid.appendChild(node);
+        });
+
+        section.appendChild(grid);
+        map.appendChild(section);
+    });
 
     showScreen('dashboard-screen');
 }
@@ -207,7 +279,7 @@ function launchGame(gameType) {
     } else {
         const msg = document.getElementById('dashboard-msg');
         if (msg) {
-            msg.textContent = "Termine d'abord les niveaux précédents !";
+            msg.textContent = "Termine d'abord les niveaux du cycle en cours !";
             msg.classList.remove('hidden');
             setTimeout(() => msg.classList.add('hidden'), 2500);
         }
@@ -228,11 +300,9 @@ function showParentLogin() {
     showScreen('parent-screen');
 }
 
-/* ===== SECURITE TACTILE ===== */
+/* ===== SÉCURITÉ TACTILE IPAD ===== */
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('touchmove', e => {
-    // Permettre le défilement naturel dans le portail parent (contenu long)
-    if (e.target.closest('#parent-screen')) return;
-    // Bloquer tout défilement parasite en dehors du portail parent
+    if (e.target.closest('#parent-screen') || e.target.closest('#dashboard-screen') || e.target.closest('#game-screen')) return;
     e.preventDefault();
 }, { passive: false });

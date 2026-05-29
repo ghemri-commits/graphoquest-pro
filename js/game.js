@@ -1,9 +1,220 @@
-// Gestionnaire Audio Hybride (Sons enregistrés + Synthèse vocale)
+// Gestionnaire d'API ElevenLabs (Synthèse vocale réaliste)
+const ElevenLabsEngine = {
+    getApiKey() {
+        return localStorage.getItem('gq_elevenlabs_key') || "";
+    },
+
+    setApiKey(key) {
+        localStorage.setItem('gq_elevenlabs_key', key);
+    },
+
+    getVoiceId(lang) {
+        // ID voix configurés pour une élocution douce et claire (adapté aux enfants)
+        return lang === 'en'
+            ? 'pNInz6obpg7If685it72' // Rachel
+            : '21m00Tcm4TlvDq8ikWAM'; // Rachel FR ou autre voix douce
+    },
+
+    blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    },
+
+    async speak(text, lang) {
+        const apiKey = this.getApiKey();
+        if (!apiKey) {
+            throw new Error("Pas de clé API");
+        }
+
+        const cacheKey = `gq_audio_${lang}_${btoa(encodeURIComponent(text.toLowerCase()))}`;
+        const cachedAudio = localStorage.getItem(cacheKey);
+
+        if (cachedAudio) {
+            this.playBase64(cachedAudio);
+            return true;
+        }
+
+        const voiceId = this.getVoiceId(lang);
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'xi-api-key': apiKey
+            },
+            body: JSON.stringify({
+                text: text,
+                model_id: 'eleven_multilingual_v2',
+                voice_settings: {
+                    stability: 0.6,
+                    similarity_boost: 0.8
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur API: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const base64Data = await this.blobToBase64(blob);
+
+        try {
+            localStorage.setItem(cacheKey, base64Data);
+        } catch (e) {
+            this.clearAudioCache();
+            try { localStorage.setItem(cacheKey, base64Data); } catch(err) {}
+        }
+
+        this.playBase64(base64Data);
+        return true;
+    },
+
+    playBase64(base64) {
+        const audio = new Audio(base64);
+        audio.play().catch(e => console.log("Erreur audio:", e));
+    },
+
+    clearAudioCache() {
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('gq_audio_')) {
+                localStorage.removeItem(key);
+            }
+        });
+    }
+};
+
+// Gestionnaire de Reconnaissance Vocale (Écoute et correction)
+const SpeechEngine = {
+    recognition: null,
+    isListening: false,
+    onResultCallback: null,
+    onErrorCallback: null,
+
+    init() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.warn("Reconnaissance vocale non supportée.");
+            return false;
+        }
+        this.recognition = new SpeechRecognition();
+        this.recognition.continuous = false;
+        this.recognition.interimResults = false;
+        this.recognition.maxAlternatives = 1;
+
+        this.recognition.onstart = () => {
+            this.isListening = true;
+            if (this.onStartCallback) this.onStartCallback();
+        };
+
+        this.recognition.onresult = (event) => {
+            this.isListening = false;
+            const resultText = event.results[0][0].transcript;
+            const confidence = event.results[0][0].confidence;
+            if (this.onResultCallback) this.onResultCallback(resultText, confidence);
+        };
+
+        this.recognition.onerror = (event) => {
+            this.isListening = false;
+            if (this.onErrorCallback) this.onErrorCallback(event.error);
+        };
+
+        this.recognition.onend = () => {
+            this.isListening = false;
+            if (this.onEndCallback) this.onEndCallback();
+        };
+
+        return true;
+    },
+
+    startListening(lang = 'fr-CA', onStart, onResult, onError, onEnd) {
+        if (!this.recognition) {
+            if (!this.init()) {
+                if (onError) onError("not_supported");
+                return;
+            }
+        }
+
+        if (this.isListening) {
+            this.recognition.stop();
+        }
+
+        // ciblage de l'accent canadien / québécois
+        this.recognition.lang = lang === 'en' ? 'en-CA' : 'fr-CA';
+
+        this.onStartCallback = onStart;
+        this.onResultCallback = onResult;
+        this.onErrorCallback = onError;
+        this.onEndCallback = onEnd;
+
+        try {
+            this.recognition.start();
+        } catch (e) {
+            if (onError) onError(e.message);
+        }
+    },
+
+    stopListening() {
+        if (this.recognition && this.isListening) {
+            this.recognition.stop();
+        }
+    },
+
+    evaluatePronunciation(spoken, target, lang) {
+        const cleanText = (str) => {
+            return str.toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Enlève les accents
+                .replace(/[^a-z0-9]/g, "")
+                .trim();
+        };
+
+        const cleanSpoken = cleanText(spoken);
+        const cleanTarget = cleanText(target);
+
+        if (cleanSpoken === cleanTarget) return { success: true, score: 100 };
+
+        const distance = this.levenshteinDistance(cleanSpoken, cleanTarget);
+        const maxLength = Math.max(cleanSpoken.length, cleanTarget.length);
+        const similarity = ((maxLength - distance) / maxLength) * 100;
+
+        // Seuil d'évaluation indulgent adapté aux enfants du primaire
+        const threshold = 70;
+        return {
+            success: similarity >= threshold,
+            score: Math.round(similarity)
+        };
+    },
+
+    levenshteinDistance(a, b) {
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
+                }
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+};
+
+// Gestionnaire d'Audio Hybride (Sons locaux + ElevenLabs + TTS Système)
 const AudioEngine = {
     audioCache: {},
     isMuted: false,
 
-    // Précharge les sons fréquents pour éviter la latence sur iPad
     preload(sounds) {
         sounds.forEach(src => {
             if (!this.audioCache[src]) {
@@ -27,12 +238,19 @@ const AudioEngine = {
                 this.audioCache[url] = audio;
             }
 
-            audio.onerror = () => this.speakTTS(textOrUrl, lang);
-
+            audio.onerror = () => this.speakBest(textOrUrl, lang);
             audio.currentTime = 0;
-            audio.play().catch(() => this.speakTTS(textOrUrl, lang));
+            audio.play().catch(() => this.speakBest(textOrUrl, lang));
         } else {
-            this.speakTTS(textOrUrl, lang);
+            this.speakBest(textOrUrl, lang);
+        }
+    },
+
+    async speakBest(text, lang) {
+        try {
+            await ElevenLabsEngine.speak(text, lang);
+        } catch (e) {
+            this.speakTTS(text, lang);
         }
     },
 
@@ -45,11 +263,21 @@ const AudioEngine = {
 
         setTimeout(() => {
             const utter = new SpeechSynthesisUtterance(text);
-            utter.lang = langCode === 'en' ? 'en-GB' : 'fr-FR';
-            utter.rate = 0.8;
-            utter.pitch = 1.1;
+            utter.lang = langCode === 'en' ? 'en-US' : 'fr-CA';
+            utter.rate = 0.75;
+            utter.pitch = 1.05;
             synth.speak(utter);
         }, 50);
+    },
+
+    vibrate(type) {
+        if (navigator.vibrate) {
+            if (type === 'correct') {
+                navigator.vibrate([40]);
+            } else if (type === 'error') {
+                navigator.vibrate([80, 50, 80]);
+            }
+        }
     }
 };
 
@@ -75,6 +303,7 @@ const GameEngine = {
         this.currentLang = profile.lang === 'both' ? 'fr' : profile.lang;
         const data = getGameData(this.currentLang);
         this.currentLevel = data.levels.find(l => l.id === levelId);
+
         this.currentGame = gameType || this.currentLevel.miniGame;
         this.currentItemIndex = 0;
         this.score = 0;
@@ -101,6 +330,7 @@ const GameEngine = {
         document.getElementById('current-score').textContent = this.score;
         this.itemHasError = false;
 
+        // Routage des mini-jeux
         if (this.currentGame === 'complete') {
             area.classList.add('mg-complete');
             this.renderComplete(item);
@@ -110,9 +340,19 @@ const GameEngine = {
         } else if (this.currentGame === 'syllable') {
             area.classList.add('mg-syllable');
             this.renderSyllable(item);
+        } else if (this.currentGame === 'pronounce') {
+            area.classList.add('mg-pronounce');
+            this.renderPronounce(item);
+        } else if (this.currentGame === 'dictation') {
+            area.classList.add('mg-dictation');
+            this.renderDictation(item);
+        } else if (this.currentGame === 'accord') {
+            area.classList.add('mg-accord');
+            this.renderAccord(item);
         }
     },
 
+    /* ===== JEU 1 : COMPLÈTE LE MOT ===== */
     renderComplete(item) {
         const area = document.getElementById('game-area');
 
@@ -182,6 +422,7 @@ const GameEngine = {
         const isCorrect = choice === expected;
 
         if (isCorrect) {
+            AudioEngine.vibrate('correct');
             slot.textContent = choice;
             slot.classList.remove('missing');
             slot.classList.add('filled');
@@ -199,6 +440,7 @@ const GameEngine = {
             document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
             setTimeout(() => this.nextItem(), 1500);
         } else {
+            AudioEngine.vibrate('error');
             btn.classList.add('wrong');
             slot.classList.add('error');
             this.streak = 0;
@@ -214,6 +456,7 @@ const GameEngine = {
         document.getElementById('current-score').textContent = this.score;
     },
 
+    /* ===== JEU 2 : SON & IMAGE ===== */
     renderMatch(item) {
         const area = document.getElementById('game-area');
 
@@ -258,6 +501,7 @@ const GameEngine = {
         this.isProcessing = true;
 
         if (choice === correct) {
+            AudioEngine.vibrate('correct');
             card.classList.add('correct');
             if (!this.itemHasError) this.correctFirstTry++;
             this.streak++;
@@ -269,6 +513,7 @@ const GameEngine = {
             document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
             setTimeout(() => this.nextItem(), 1500);
         } else {
+            AudioEngine.vibrate('error');
             card.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
@@ -282,6 +527,7 @@ const GameEngine = {
         document.getElementById('current-score').textContent = this.score;
     },
 
+    /* ===== JEU 3 : SYLLABES ===== */
     renderSyllable(item) {
         const area = document.getElementById('game-area');
 
@@ -333,6 +579,7 @@ const GameEngine = {
         const expected = this.syllableSequence[this.currentSyllableIndex];
 
         if (part === expected) {
+            AudioEngine.vibrate('correct');
             btn.classList.add('selected');
             btn.disabled = true;
 
@@ -341,7 +588,6 @@ const GameEngine = {
 
             this.currentSyllableIndex++;
 
-            // Si la même syllabe est encore attendue plus loin, réactiver le bouton
             const stillNeeded = this.syllableSequence.slice(this.currentSyllableIndex).includes(part);
             if (stillNeeded) {
                 setTimeout(() => {
@@ -367,6 +613,7 @@ const GameEngine = {
                 setTimeout(() => this.nextItem(), 1800);
             }
         } else {
+            AudioEngine.vibrate('error');
             btn.classList.add('wrong');
             this.streak = 0;
             this.itemHasError = true;
@@ -377,6 +624,387 @@ const GameEngine = {
         document.getElementById('current-score').textContent = this.score;
     },
 
+    /* ===== JEU 4 : PRONONCIATION (ÉCOUTE ET CORRIGE) ===== */
+    renderPronounce(item) {
+        const area = document.getElementById('game-area');
+
+        const container = document.createElement('div');
+        container.className = 'pronounce-container';
+        container.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:480px;margin:0 auto;';
+
+        const title = document.createElement('h3');
+        title.textContent = this.currentLang === 'en' ? 'Read aloud:' : 'Lis à haute voix :';
+        title.style.cssText = 'font-size:20px;color:#475569;margin:0;font-weight:700;';
+        container.appendChild(title);
+
+        const wordCard = document.createElement('div');
+        wordCard.className = 'pronounce-word-card';
+        wordCard.textContent = item.word || item.target;
+        wordCard.style.cssText = 'font-size:46px;font-weight:700;background:#ffffff;padding:20px 40px;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,0.06);color:#1e293b;letter-spacing:1px;width:100%;text-align:center;border:2px solid #e2e8f0;';
+        container.appendChild(wordCard);
+
+        const subText = document.createElement('p');
+        subText.id = 'speech-status';
+        subText.textContent = this.currentLang === 'en' ? 'Tap the mic and speak' : 'Appuie sur le micro et parle';
+        subText.style.cssText = 'font-size:16px;color:#64748b;margin:0;font-weight:600;';
+        container.appendChild(subText);
+
+        const micBtn = document.createElement('button');
+        micBtn.id = 'mic-button';
+        micBtn.className = 'btn-mic-ios';
+        micBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" style="width:36px;height:36px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1"></path>
+                <line x1="12" x2="12" y1="19" y2="22"></line>
+            </svg>
+        `;
+        micBtn.style.cssText = 'background:#007aff;color:white;width:80px;height:80px;border-radius:50%;border:none;display:flex;justify-content:center;align-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,122,255,0.3);transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);';
+
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = `
+            @keyframes micPulse {
+                0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); transform: scale(1); }
+                70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); transform: scale(1.06); }
+                100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); transform: scale(1); }
+            }
+            .mic-active {
+                background: #ef4444 !important;
+                animation: micPulse 1.2s infinite;
+                box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4) !important;
+            }
+        `;
+        document.head.appendChild(styleSheet);
+
+        micBtn.onclick = () => {
+            if (this.isProcessing) return;
+            this.toggleSpeechListening(item, micBtn, subText);
+        };
+
+        container.appendChild(micBtn);
+
+        const listenOption = document.createElement('button');
+        listenOption.style.cssText = 'background:none;border:none;color:#007aff;font-size:16px;font-weight:700;cursor:pointer;';
+        listenOption.innerHTML = '🔊 <span>Écouter le modèle</span>';
+        listenOption.onclick = () => AudioEngine.play(item.word || item.target, false, this.currentLang);
+        container.appendChild(listenOption);
+
+        area.appendChild(container);
+    },
+
+    toggleSpeechListening(item, micBtn, subText) {
+        if (micBtn.classList.contains('mic-active')) {
+            SpeechEngine.stopListening();
+            return;
+        }
+
+        const targetWord = item.word || item.target;
+
+        SpeechEngine.startListening(
+            this.currentLang,
+            () => {
+                micBtn.classList.add('mic-active');
+                subText.textContent = this.currentLang === 'en' ? 'Listening...' : 'Je t\'écoute...';
+                subText.style.color = '#ef4444';
+            },
+            (result, confidence) => {
+                micBtn.classList.remove('mic-active');
+                this.handlePronunciationResult(result, targetWord, subText, micBtn);
+            },
+            (err) => {
+                micBtn.classList.remove('mic-active');
+                subText.style.color = '#ef4444';
+                if (err === 'not-allowed') {
+                    subText.textContent = "🎙️ Micro bloqué. Active-le dans tes réglages !";
+                } else {
+                    subText.textContent = "Réessaie de parler !";
+                }
+                setTimeout(() => {
+                    subText.style.color = '#64748b';
+                    subText.textContent = this.currentLang === 'en' ? 'Tap the mic and speak' : 'Appuie sur le micro et parle';
+                }, 3000);
+            },
+            () => {
+                micBtn.classList.remove('mic-active');
+            }
+        );
+    },
+
+    handlePronunciationResult(spokenText, targetWord, subText, micBtn) {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
+
+        const evalResult = SpeechEngine.evaluatePronunciation(spokenText, targetWord, this.currentLang);
+
+        if (evalResult.success) {
+            AudioEngine.vibrate('correct');
+            subText.style.color = '#10b981';
+            subText.textContent = `🗣️ "${spokenText}" (${evalResult.score}%)`;
+
+            if (!this.itemHasError) this.correctFirstTry++;
+            this.streak++;
+            this.score += 15 + (this.streak * 2);
+            this.showFeedback('🎉');
+
+            setTimeout(() => {
+                AudioEngine.play(this.currentLang === 'en' ? 'Excellent!' : 'Fantastique !', false, this.currentLang);
+                this.createParticles(micBtn);
+            }, 300);
+
+            const total = this.currentLevel.items.length;
+            document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+            setTimeout(() => this.nextItem(), 2000);
+        } else {
+            AudioEngine.vibrate('error');
+            subText.style.color = '#ef4444';
+            subText.textContent = spokenText ? `Tu as dit : "${spokenText}"` : "Je n'ai pas compris...";
+            this.streak = 0;
+            this.itemHasError = true;
+            this.showFeedback('❌');
+
+            setTimeout(() => {
+                subText.style.color = '#64748b';
+                subText.textContent = this.currentLang === 'en' ? 'Try again!' : 'Essaie encore !';
+                this.isProcessing = false;
+            }, 2000);
+        }
+
+        document.getElementById('current-score').textContent = this.score;
+    },
+
+    /* ===== JEU 5 : LA DICTÉE ===== */
+    renderDictation(item) {
+        const area = document.getElementById('game-area');
+
+        const container = document.createElement('div');
+        container.className = 'dictation-container';
+        container.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:20px;width:100%;max-width:440px;margin:0 auto;';
+
+        const title = document.createElement('h3');
+        title.textContent = this.currentLang === 'en' ? 'Listen and write:' : 'Écoute et écris le mot :';
+        title.style.cssText = 'font-size:20px;color:#475569;margin:0;font-weight:700;';
+        container.appendChild(title);
+
+        const soundBtn = document.createElement('button');
+        soundBtn.className = 'btn-audio-dictation';
+        soundBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" style="width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:2.5">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+            <span>Écouter le mot</span>
+        `;
+        soundBtn.style.cssText = 'background:#6366f1;color:white;border:none;border-radius:18px;padding:14px 24px;font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px;cursor:pointer;box-shadow:0 8px 24px rgba(99,102,241,0.2);width:100%;justify-content:center;';
+        soundBtn.onclick = () => AudioEngine.play(item.word || item.target, false, this.currentLang);
+        container.appendChild(soundBtn);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'dictation-input';
+        input.placeholder = this.currentLang === 'en' ? 'Type...' : 'Écris ici...';
+        input.autocomplete = 'off';
+        input.autocorrect = 'off';
+        input.autocapitalize = 'none';
+        input.spellcheck = false;
+        input.style.cssText = 'width:100%;font-size:24px;padding:14px 18px;border-radius:16px;border:2px solid #cbd5e1;text-align:center;font-weight:600;outline:none;background:#f8fafc;color:#1e293b;';
+        container.appendChild(input);
+
+        const submitBtn = document.createElement('button');
+        submitBtn.textContent = this.currentLang === 'en' ? 'Check ✓' : 'Valider ✓';
+        submitBtn.style.cssText = 'width:100%;background:#10b981;color:white;border:none;border-radius:16px;padding:14px;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(16,185,129,0.15);';
+
+        submitBtn.onclick = () => {
+            const answer = input.value.trim();
+            this.handleDictationSubmit(answer, item, input, submitBtn);
+        };
+
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                const answer = input.value.trim();
+                this.handleDictationSubmit(answer, item, input, submitBtn);
+            }
+        };
+
+        container.appendChild(submitBtn);
+
+        if (item.hint) {
+            const hintText = document.createElement('p');
+            hintText.innerHTML = `💡 Indice : <em>${item.hint}</em>`;
+            hintText.style.cssText = 'font-size:15px;color:#64748b;margin-top:8px;';
+            container.appendChild(hintText);
+        }
+
+        area.appendChild(container);
+
+        setTimeout(() => {
+            input.focus();
+            AudioEngine.play(item.word || item.target, false, this.currentLang);
+        }, 400);
+    },
+
+    handleDictationSubmit(answer, item, input, btn) {
+        if (this.isProcessing || !answer) return;
+        this.isProcessing = true;
+
+        const targetWord = (item.word || item.target).trim();
+        const cleanStr = (str) => str.toLowerCase().replace(/\s+/g, ' ').trim();
+        const isCorrect = cleanStr(answer) === cleanStr(targetWord);
+
+        if (isCorrect) {
+            AudioEngine.vibrate('correct');
+            input.style.borderColor = '#10b981';
+            input.style.background = '#ecfdf5';
+            input.style.color = '#10b981';
+
+            if (!this.itemHasError) this.correctFirstTry++;
+            this.streak++;
+            const points = 15 + (this.streak * 2);
+            this.score += points;
+            this.showFeedback('🎉');
+            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Good job!' : 'Bravo !', false, this.currentLang), 500);
+            this.createParticles(input);
+
+            const total = this.currentLevel.items.length;
+            document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+            setTimeout(() => this.nextItem(), 1800);
+        } else {
+            AudioEngine.vibrate('error');
+            input.style.borderColor = '#ef4444';
+            input.style.background = '#fef2f2';
+            input.style.color = '#ef4444';
+            input.classList.add('shake-animation');
+
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    25% { transform: translateX(-6px); }
+                    75% { transform: translateX(6px); }
+                }
+                .shake-animation { animation: shake 0.25s ease-in-out; }
+            `;
+            document.head.appendChild(style);
+
+            this.streak = 0;
+            this.itemHasError = true;
+            this.showFeedback('❌');
+
+            setTimeout(() => {
+                input.style.borderColor = '#cbd5e1';
+                input.style.background = '#f8fafc';
+                input.style.color = '#1e293b';
+                input.classList.remove('shake-animation');
+                input.focus();
+                this.isProcessing = false;
+            }, 1200);
+        }
+
+        document.getElementById('current-score').textContent = this.score;
+    },
+
+    /* ===== JEU 6 : ACCORD-EXPRESS (PFEQ GRAMMAIRE) ===== */
+    renderAccord(item) {
+        const area = document.getElementById('game-area');
+
+        const container = document.createElement('div');
+        container.className = 'accord-container';
+        container.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:480px;margin:0 auto;';
+
+        const title = document.createElement('h3');
+        title.textContent = this.currentLang === 'en' ? 'Choose the correct agreement:' : 'Choisis la bonne forme :';
+        title.style.cssText = 'font-size:20px;color:#475569;margin:0;font-weight:700;';
+        container.appendChild(title);
+
+        const sentenceDiv = document.createElement('div');
+        sentenceDiv.className = 'accord-sentence';
+        const displaySentence = item.sentence.replace('___', '<span id="accord-slot" class="letter-slot missing" style="display:inline-block;width:120px;height:38px;vertical-align:middle;margin:0 10px;line-height:34px;text-align:center;font-size:20px;border-bottom:3px dashed #6366f1;"></span>');
+        sentenceDiv.innerHTML = displaySentence;
+        sentenceDiv.style.cssText = 'font-size:22px;font-weight:600;line-height:1.6;text-align:center;color:#1e293b;padding:20px;background:#f8fafc;border-radius:18px;border:1px solid #e2e8f0;width:100%;';
+        container.appendChild(sentenceDiv);
+
+        const audioBtn = document.createElement('button');
+        audioBtn.className = 'btn-audio-large';
+        audioBtn.innerHTML = '🔊 <span>Écouter la phrase</span>';
+        audioBtn.onclick = () => AudioEngine.play(item.sentence.replace('___', item.correct), false, this.currentLang);
+        container.appendChild(audioBtn);
+
+        const choicesDiv = document.createElement('div');
+        choicesDiv.className = 'choices-row';
+        choicesDiv.style.cssText = 'display:flex;gap:12px;width:100%;justify-content:center;margin-top:10px;flex-wrap:wrap;';
+
+        const shuffled = [...item.options].sort(() => Math.random() - 0.5);
+        shuffled.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = opt;
+            btn.style.cssText = 'min-width:110px;padding:10px 20px;font-size:18px;';
+            btn.onclick = () => this.handleAccordChoice(opt, btn, item);
+            choicesDiv.appendChild(btn);
+        });
+        container.appendChild(choicesDiv);
+
+        if (item.hint) {
+            const hintText = document.createElement('p');
+            hintText.innerHTML = `💡 Règle : <em>${item.hint}</em>`;
+            hintText.style.cssText = 'font-size:14px;color:#64748b;margin-top:10px;';
+            container.appendChild(hintText);
+        }
+
+        area.appendChild(container);
+    },
+
+    handleAccordChoice(choice, btn, item) {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
+
+        const slot = document.getElementById('accord-slot');
+        const isCorrect = choice === item.correct;
+
+        if (isCorrect) {
+            AudioEngine.vibrate('correct');
+            if (slot) {
+                slot.textContent = choice;
+                slot.style.borderBottom = '3px solid #10b981';
+                slot.style.color = '#10b981';
+            }
+            btn.classList.add('correct');
+
+            if (!this.itemHasError) this.correctFirstTry++;
+            this.streak++;
+            this.score += 15 + (this.streak * 2);
+            this.showFeedback('✅');
+            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Excellent!' : 'Super accord !', false, this.currentLang), 500);
+            this.createParticles(btn);
+
+            const total = this.currentLevel.items.length;
+            document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+            setTimeout(() => this.nextItem(), 1800);
+        } else {
+            AudioEngine.vibrate('error');
+            btn.classList.add('wrong');
+            if (slot) {
+                slot.textContent = choice;
+                slot.style.borderBottom = '3px solid #ef4444';
+                slot.style.color = '#ef4444';
+            }
+            this.streak = 0;
+            this.itemHasError = true;
+            this.showFeedback('❌');
+            setTimeout(() => {
+                btn.classList.remove('wrong');
+                if (slot) {
+                    slot.textContent = '';
+                    slot.style.borderBottom = '3px dashed #6366f1';
+                    slot.style.color = '';
+                }
+                this.isProcessing = false;
+            }, 1000);
+        }
+
+        document.getElementById('current-score').textContent = this.score;
+    },
+
+    /* ===== TRANSITIONS ET RÉSULTATS ===== */
     nextItem() {
         const currentItem = this.currentLevel.items[this.currentItemIndex];
         if (this.itemHasError && currentItem) {
@@ -414,7 +1042,7 @@ const GameEngine = {
         banner.innerHTML = `
             <div style="font-size:80px;margin-bottom:16px">🔁</div>
             <h2 style="font-size:28px;margin-bottom:8px">Révision !</h2>
-            <p style="font-size:18px;color:#64748b">On réessaie les plus difficiles</p>
+            <p style="font-size:18px;color:#64748b">On s'exerce sur les plus difficiles !</p>
         `;
         area.appendChild(banner);
         AudioEngine.play(this.currentLang === 'en' ? "Let's review!" : "On révise !", false, this.currentLang);
@@ -444,11 +1072,11 @@ const GameEngine = {
         area.innerHTML = `
             <div style="text-align:center;animation:pop 0.5s">
                 <div style="font-size:100px;margin-bottom:20px">🏆</div>
-                <h2 style="font-size:32px;margin-bottom:10px">Niveau terminé !</h2>
+                <h2 style="font-size:32px;margin-bottom:10px">Niveau complété !</h2>
                 <div style="font-size:50px;margin:20px 0">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-                <p style="font-size:22px;color:#666">${this.correctFirstTry}/${total} (${percent}%)</p>
-                <p style="font-size:20px;color:#888;margin-top:8px">Score : ${this.score}</p>
-                <button class="btn-primary" style="margin-top:30px;font-size:24px;padding:15px 40px" onclick="exitGame()">Continuer ➡</button>
+                <p style="font-size:22px;color:#475569">${this.correctFirstTry}/${total} (${percent}%)</p>
+                <p style="font-size:20px;color:#64748b;margin-top:8px">Score : ${this.score}</p>
+                <button class="btn-primary" style="margin-top:30px;font-size:24px;padding:14px 40px" onclick="exitGame()">Continuer ➡</button>
             </div>
         `;
 

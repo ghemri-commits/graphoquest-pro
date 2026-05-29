@@ -101,6 +101,18 @@
                             <span class="game-icon">✂️</span>
                             <span class="game-title">Syllabes</span>
                         </button>
+                        <button class="game-card" onclick="launchGame('pronounce')">
+                            <span class="game-icon">🎤</span>
+                            <span class="game-title">Prononciation</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('dictation')">
+                            <span class="game-icon">✍️</span>
+                            <span class="game-title">Dictée</span>
+                        </button>
+                        <button class="game-card" onclick="launchGame('accord')">
+                            <span class="game-icon">📝</span>
+                            <span class="game-title">Accord-Express</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -172,6 +184,10 @@
                 </div>
 
                 <div id="tab-settings" class="tab-content">
+                    <h3>🎙️ Clé ElevenLabs API (Optionnelle)</h3>
+                    <input type="password" id="elevenlabs-key" placeholder="Entrez votre clé API ElevenLabs" style="width:100%; padding:12px; border-radius:12px; border:2px solid #cbd5e1; margin-bottom:8px;" onchange="ElevenLabsEngine.setApiKey(this.value)">
+                    <p style="font-size:13px; color:#64748b; margin-bottom:24px;">Si laissé vide, l'iPad utilisera automatiquement sa propre voix de synthèse vocale québécoise (sans frais).</p>
+
                     <h3>Changer le code PIN</h3>
                     <input type="password" id="new-pin" placeholder="Nouveau PIN (4 chiffres)" maxlength="4">
                     <button class="btn-primary" onclick="changePin()">🔐 Enregistrer</button>
