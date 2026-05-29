@@ -306,6 +306,7 @@ const GameEngine = {
 
         this.currentGame = gameType || this.currentLevel.miniGame;
         this.currentItemIndex = 0;
+        this.originalTotal = this.currentLevel.items.length;
         this.score = 0;
         this.stars = 0;
         this.streak = 0;
@@ -445,7 +446,7 @@ const GameEngine = {
             const points = 10 + (this.streak * 2);
             this.score += points;
             this.showFeedback('✅');
-            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Great!' : 'Bravo !', false, this.currentLang), 500);
+            setTimeout(() => this.praiseVoice(), 500);
             this.createParticles(btn);
 
             const total = this.currentLevel.items.length;
@@ -519,7 +520,7 @@ const GameEngine = {
             this.streak++;
             this.score += 10 + (this.streak * 2);
             this.showFeedback('✅');
-            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Excellent!' : 'Excellent !', false, this.currentLang), 500);
+            setTimeout(() => this.praiseVoice(), 500);
             this.createParticles(card);
             const total = this.currentLevel.items.length;
             document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
@@ -614,7 +615,7 @@ const GameEngine = {
                 this.streak++;
                 this.score += 15 + (this.streak * 3);
                 this.showFeedback('🌟');
-                setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Awesome!' : 'Super !', false, this.currentLang), 600);
+                setTimeout(() => this.praiseVoice(), 600);
 
                 document.querySelectorAll('.syllable-btn').forEach(b => {
                     if (!b.disabled) b.classList.add('correct');
@@ -673,7 +674,8 @@ const GameEngine = {
         `;
         micBtn.style.cssText = 'background:#007aff;color:white;width:80px;height:80px;border-radius:50%;border:none;display:flex;justify-content:center;align-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,122,255,0.3);transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);';
 
-        const styleSheet = document.createElement('style');
+        const styleSheet = document.getElementById('gq-mic-style') || document.createElement('style');
+        styleSheet.id = 'gq-mic-style';
         styleSheet.textContent = `
             @keyframes micPulse {
                 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); transform: scale(1); }
@@ -686,7 +688,7 @@ const GameEngine = {
                 box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4) !important;
             }
         `;
-        document.head.appendChild(styleSheet);
+        if (!styleSheet.isConnected) document.head.appendChild(styleSheet);
 
         micBtn.onclick = () => {
             if (this.isProcessing) return;
@@ -759,7 +761,7 @@ const GameEngine = {
             this.showFeedback('🎉');
 
             setTimeout(() => {
-                AudioEngine.play(this.currentLang === 'en' ? 'Excellent!' : 'Fantastique !', false, this.currentLang);
+                this.praiseVoice();
                 this.createParticles(micBtn);
             }, 300);
 
@@ -873,7 +875,7 @@ const GameEngine = {
             const points = 15 + (this.streak * 2);
             this.score += points;
             this.showFeedback('🎉');
-            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Good job!' : 'Bravo !', false, this.currentLang), 500);
+            setTimeout(() => this.praiseVoice(), 500);
             this.createParticles(input);
 
             const total = this.currentLevel.items.length;
@@ -886,7 +888,8 @@ const GameEngine = {
             input.style.color = '#ef4444';
             input.classList.add('shake-animation');
 
-            const style = document.createElement('style');
+            const style = document.getElementById('gq-shake-style') || document.createElement('style');
+            style.id = 'gq-shake-style';
             style.textContent = `
                 @keyframes shake {
                     0%, 100% { transform: translateX(0); }
@@ -895,7 +898,7 @@ const GameEngine = {
                 }
                 .shake-animation { animation: shake 0.25s ease-in-out; }
             `;
-            document.head.appendChild(style);
+            if (!style.isConnected) document.head.appendChild(style);
 
             this.streak = 0;
             this.itemHasError = true;
@@ -985,7 +988,7 @@ const GameEngine = {
             this.streak++;
             this.score += 15 + (this.streak * 2);
             this.showFeedback('✅');
-            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Excellent!' : 'Super accord !', false, this.currentLang), 500);
+            setTimeout(() => this.praiseVoice(), 500);
             this.createParticles(btn);
 
             const total = this.currentLevel.items.length;
@@ -1109,7 +1112,7 @@ const GameEngine = {
                 this.streak++;
                 this.score += 15 + (this.streak * 2);
                 this.showFeedback('🌟');
-                setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Well done!' : 'Bien joué !', false, this.currentLang), 500);
+                setTimeout(() => this.praiseVoice(), 500);
                 this.createParticles(btn);
                 const total = this.currentLevel.items.length;
                 document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
@@ -1208,13 +1211,18 @@ const GameEngine = {
             if (this.compIndex >= this.compQuestions.length) {
                 this.isProcessing = true;
                 if (!this.itemHasError) this.correctFirstTry++;
-                setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Great reading!' : 'Bravo la lecture !', false, this.currentLang), 400);
+                setTimeout(() => this.praiseVoice(), 400);
                 this.createParticles(btn);
                 const total = this.currentLevel.items.length;
                 document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
                 setTimeout(() => this.nextItem(), 1500);
             } else {
-                setTimeout(() => this._renderCompQuestion(), 700);
+                // On verrouille pendant la transition pour éviter un double-clic.
+                this.isProcessing = true;
+                setTimeout(() => {
+                    this.isProcessing = false;
+                    this._renderCompQuestion();
+                }, 700);
             }
         } else {
             AudioEngine.vibrate('error');
@@ -1279,7 +1287,7 @@ const GameEngine = {
             this.streak++;
             this.score += 15 + (this.streak * 2);
             this.showFeedback('✅');
-            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Good eye!' : 'Bien vu !', false, this.currentLang), 500);
+            setTimeout(() => this.praiseVoice(), 500);
             this.createParticles(chip);
             const total = this.currentLevel.items.length;
             document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
@@ -1353,7 +1361,7 @@ const GameEngine = {
             this.streak++;
             this.score += 12 + (this.streak * 2);
             this.showFeedback('✅');
-            setTimeout(() => AudioEngine.play(this.currentLang === 'en' ? 'Brilliant!' : 'Bravo !', false, this.currentLang), 500);
+            setTimeout(() => this.praiseVoice(), 500);
             this.createParticles(btn);
             const total = this.currentLevel.items.length;
             document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
@@ -1414,43 +1422,83 @@ const GameEngine = {
             <p style="font-size:18px;color:#64748b">On s'exerce sur les plus difficiles !</p>
         `;
         area.appendChild(banner);
-        AudioEngine.play(this.currentLang === 'en' ? "Let's review!" : "On révise !", false, this.currentLang);
+        if (typeof TutorEngine !== 'undefined') {
+            TutorEngine.encourage(this.currentLang);
+        } else {
+            AudioEngine.play(this.currentLang === 'en' ? "Let's review!" : "On révise !", false, this.currentLang);
+        }
 
         setTimeout(() => this.render(), 2500);
     },
 
     endLevel() {
-        const total = this.currentLevel.items.length;
-        const ratio = this.correctFirstTry / total;
+        const en = this.currentLang === 'en';
+        // On note la maîtrise sur le nombre de questions D'ORIGINE (les rondes de
+        // révision ne doivent jamais faire dépasser 100 %).
+        const total = this.originalTotal || this.currentLevel.items.length;
+        const ratio = Math.min(1, this.correctFirstTry / total);
         let stars = 1;
         if (ratio >= 0.7) stars = 2;
         if (ratio >= 1.0) stars = 3;
 
         document.getElementById('game-progress-fill').style.width = '100%';
 
-        ProfileManager.recordLevelComplete(
+        const reward = ProfileManager.recordLevelComplete(
             this.currentProfile.id,
             this.currentLevel.id,
             this.score,
             stars,
             this.currentLang
-        );
+        ) || {};
 
+        const correct = Math.min(this.correctFirstTry, total);
         const percent = Math.round(ratio * 100);
         const area = document.getElementById('game-area');
+
+        // Bandeaux de récompense (série de jours, nouveau rang, badges) pour
+        // entretenir la motivation à long terme.
+        let bonusHtml = '';
+        if (reward.rankUp && reward.rank) {
+            bonusHtml += `<div style="margin-top:14px;font-size:18px;font-weight:700;color:#6366f1">${reward.rank.emoji} ${en ? 'New rank' : 'Nouveau rang'} : ${reward.rank.name} !</div>`;
+        }
+        if (reward.streakDays && reward.streakDays > 1) {
+            bonusHtml += `<div style="margin-top:8px;font-size:17px;font-weight:600;color:#f59e0b">🔥 ${reward.streakDays} ${en ? 'days in a row!' : 'jours d\'affilée !'}</div>`;
+        }
+        if (reward.newBadges && reward.newBadges.length) {
+            const chips = reward.newBadges.map(b => `<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border:2px solid #fcd34d;border-radius:14px;padding:6px 12px;font-size:15px;font-weight:700;color:#92400e">${b.emoji} ${en ? b.nameEn : b.nameFr}</span>`).join(' ');
+            bonusHtml += `<div style="margin-top:14px;font-size:15px;color:#475569;font-weight:700">${en ? 'New badge!' : 'Nouveau badge !'}</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${chips}</div>`;
+        }
+
         area.innerHTML = `
             <div style="text-align:center;animation:pop 0.5s">
-                <div style="font-size:100px;margin-bottom:20px">🏆</div>
-                <h2 style="font-size:32px;margin-bottom:10px">Niveau complété !</h2>
-                <div style="font-size:50px;margin:20px 0">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-                <p style="font-size:22px;color:#475569">${this.correctFirstTry}/${total} (${percent}%)</p>
+                <div style="font-size:100px;margin-bottom:12px">🏆</div>
+                <h2 style="font-size:32px;margin-bottom:10px">${en ? 'Level complete!' : 'Niveau complété !'}</h2>
+                <div style="font-size:50px;margin:16px 0">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+                <p style="font-size:22px;color:#475569">${correct}/${total} (${percent}%)</p>
                 <p style="font-size:20px;color:#64748b;margin-top:8px">Score : ${this.score}</p>
-                <button class="btn-primary" style="margin-top:30px;font-size:24px;padding:14px 40px" onclick="exitGame()">Continuer ➡</button>
+                ${bonusHtml}
+                <button class="btn-primary" style="margin-top:28px;font-size:24px;padding:14px 40px" onclick="exitGame()">${en ? 'Continue ➡' : 'Continuer ➡'}</button>
             </div>
         `;
 
-        AudioEngine.play(this.currentLang === 'en' ? 'Level complete!' : 'Niveau terminé !', false, this.currentLang);
+        // La mascotte félicite l'enfant de vive voix (voix variée).
+        if (typeof TutorEngine !== 'undefined') {
+            const line = stars === 3
+                ? (en ? 'Perfect! You are a true champion!' : 'Parfait ! Tu es un vrai champion !')
+                : (en ? 'Well done, keep it up!' : 'Bien joué, continue comme ça !');
+            setTimeout(() => TutorEngine.say(line, this.currentLang), 700);
+        }
+
         this.createConfetti();
+    },
+
+    // Félicitation parlée VARIÉE (anti-lassitude) via la mascotte.
+    praiseVoice() {
+        if (typeof TutorEngine !== 'undefined') {
+            TutorEngine.cheer(this.currentLang);
+        } else {
+            AudioEngine.play(this.currentLang === 'en' ? 'Great!' : 'Super !', false, this.currentLang);
+        }
     },
 
     showFeedback(emoji) {

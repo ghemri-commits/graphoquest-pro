@@ -14,6 +14,10 @@ const ProfileManager = {
                 if (!p.unlockedLevelsFr) { p.unlockedLevelsFr = [...(p.unlockedLevels || [1])]; needsSave = true; }
                 if (!p.unlockedLevelsEn) { p.unlockedLevelsEn = [...(p.unlockedLevels || [1])]; needsSave = true; }
                 if (!p.deviceId) { p.deviceId = getDeviceId(); needsSave = true; }
+                // Champs de gamification (tuteur virtuel)
+                if (!Array.isArray(p.badges)) { p.badges = []; needsSave = true; }
+                if (typeof p.streakDays !== 'number') { p.streakDays = 0; needsSave = true; }
+                if (!('lastPlayed' in p)) { p.lastPlayed = null; needsSave = true; }
             });
             if (needsSave) this._saveLocal(profiles);
             return profiles;
@@ -80,7 +84,10 @@ const ProfileManager = {
             progress: {},
             totalScore: 0,
             unlockedLevelsFr: [1],
-            unlockedLevelsEn: [1]
+            unlockedLevelsEn: [1],
+            badges: [],
+            streakDays: 0,
+            lastPlayed: null
         };
 
         profiles.push(newProfile);
@@ -125,7 +132,9 @@ const ProfileManager = {
     recordLevelComplete(profileId, levelId, score, stars, lang) {
         const profiles = this.getAll();
         const profile = profiles.find(p => p.id === profileId);
-        if (!profile) return;
+        if (!profile) return null;
+
+        const prevRank = this.getRank(profile.totalScore);
 
         if (!profile.progress[levelId]) {
             profile.progress[levelId] = { bestScore: 0, stars: 0, attempts: 0 };
@@ -136,6 +145,16 @@ const ProfileManager = {
         if (stars > prog.stars) prog.stars = stars;
         profile.totalScore += score;
 
+        // --- Série de jours consécutifs (motivation à revenir chaque jour) ---
+        const today = this._todayStr();
+        if (profile.lastPlayed !== today) {
+            const yesterday = this._shiftDay(today, -1);
+            profile.streakDays = (profile.lastPlayed === yesterday) ? (profile.streakDays || 0) + 1 : 1;
+            profile.lastPlayed = today;
+        }
+        if (!profile.streakDays) profile.streakDays = 1;
+
+        // --- Déblocage du niveau suivant ---
         const nextLevel = levelId + 1;
         const levelExists = getGameData(lang === 'en' ? 'en' : 'fr').levels.some(l => l.id === nextLevel);
         if (levelExists) {
@@ -147,7 +166,88 @@ const ProfileManager = {
             }
         }
 
+        // --- Badges nouvellement gagnés ---
+        if (!Array.isArray(profile.badges)) profile.badges = [];
+        const qualified = this._qualifiedBadges(profile, stars);
+        const newBadgeIds = qualified.filter(id => !profile.badges.includes(id));
+        profile.badges.push(...newBadgeIds);
+
+        const newRank = this.getRank(profile.totalScore);
+
         this.update(profileId, profile);
+
+        return {
+            streakDays: profile.streakDays,
+            rank: newRank,
+            rankUp: newRank.index > prevRank.index,
+            newBadges: newBadgeIds.map(id => this.BADGES.find(b => b.id === id)).filter(Boolean)
+        };
+    },
+
+    /* ===== GAMIFICATION : RANGS, BADGES, SÉRIE ===== */
+    RANKS: [
+        { name: 'Explorateur', nameEn: 'Explorer', emoji: '🌱', min: 0 },
+        { name: 'Aventurier', nameEn: 'Adventurer', emoji: '🧭', min: 200 },
+        { name: 'Champion', nameEn: 'Champion', emoji: '⭐', min: 500 },
+        { name: 'Expert', nameEn: 'Expert', emoji: '🚀', min: 1000 },
+        { name: 'Maître', nameEn: 'Master', emoji: '👑', min: 2000 },
+        { name: 'Légende', nameEn: 'Legend', emoji: '🏆', min: 4000 }
+    ],
+
+    getRank(score) {
+        score = score || 0;
+        let idx = 0;
+        for (let i = 0; i < this.RANKS.length; i++) {
+            if (score >= this.RANKS[i].min) idx = i;
+        }
+        const rank = this.RANKS[idx];
+        const next = this.RANKS[idx + 1] || null;
+        return {
+            index: idx,
+            name: rank.name,
+            nameEn: rank.nameEn,
+            emoji: rank.emoji,
+            min: rank.min,
+            nextMin: next ? next.min : null,
+            isMax: !next
+        };
+    },
+
+    BADGES: [
+        { id: 'first_level', emoji: '🎫', nameFr: 'Premier pas', nameEn: 'First step' },
+        { id: 'five_levels', emoji: '🖐️', nameFr: '5 niveaux', nameEn: '5 levels' },
+        { id: 'ten_levels', emoji: '🔟', nameFr: '10 niveaux', nameEn: '10 levels' },
+        { id: 'perfect', emoji: '💯', nameFr: 'Sans-faute', nameEn: 'Flawless' },
+        { id: 'streak3', emoji: '🔥', nameFr: '3 jours de suite', nameEn: '3-day streak' },
+        { id: 'streak7', emoji: '📅', nameFr: 'Une semaine !', nameEn: 'One week!' },
+        { id: 'score1000', emoji: '💰', nameFr: '1000 points', nameEn: '1000 points' }
+    ],
+
+    _qualifiedBadges(profile, starsThisRound) {
+        const completed = Object.keys(profile.progress || {}).length;
+        const has3 = (starsThisRound >= 3) || Object.values(profile.progress || {}).some(p => p.stars >= 3);
+        const checks = {
+            first_level: completed >= 1,
+            five_levels: completed >= 5,
+            ten_levels: completed >= 10,
+            perfect: has3,
+            streak3: (profile.streakDays || 0) >= 3,
+            streak7: (profile.streakDays || 0) >= 7,
+            score1000: (profile.totalScore || 0) >= 1000
+        };
+        return Object.keys(checks).filter(id => checks[id]);
+    },
+
+    _todayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    },
+
+    _shiftDay(dateStr, deltaDays) {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        dt.setDate(dt.getDate() + deltaDays);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     },
 
     resetProgress(profileId) {

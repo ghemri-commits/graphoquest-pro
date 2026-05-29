@@ -144,6 +144,109 @@ function logout() {
     renderProfiles();
 }
 
+/* ===== PANNEAU TUTEUR (mascotte + progression motivante) ===== */
+
+function buildTutorPanel(profile, lang, data, unlockedLevels) {
+    const en = profile.lang === 'en';
+    const rank = ProfileManager.getRank(profile.totalScore);
+    const streak = profile.streakDays || 0;
+    const badges = (profile.badges || [])
+        .map(id => ProfileManager.BADGES.find(b => b.id === id))
+        .filter(Boolean);
+
+    // Prochain niveau à jouer (débloqué, non complété).
+    const nextLevel = data.levels.find(l => unlockedLevels.includes(l.id) && !profile.progress[l.id]);
+
+    const panel = document.createElement('div');
+    panel.className = 'tutor-panel';
+    panel.style.cssText = 'background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:24px;padding:20px;margin-bottom:24px;color:#fff;box-shadow:0 12px 30px rgba(79,70,229,0.25);';
+
+    // Ligne mascotte + message
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:14px;';
+    const face = document.createElement('div');
+    face.textContent = '🦊';
+    face.style.cssText = 'font-size:46px;line-height:1;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.2));';
+    const msg = document.createElement('div');
+    const completedCount = Object.keys(profile.progress || {}).length;
+    const hello = en ? `Hi ${profile.name}!` : `Salut ${profile.name} !`;
+    const sub = nextLevel
+        ? (en ? "Let's continue your quest!" : 'On continue ta quête !')
+        : (en ? 'You finished everything — amazing!' : 'Tu as tout terminé — bravo !');
+    msg.innerHTML = `<div style="font-size:20px;font-weight:800">${hello}</div><div style="font-size:14px;opacity:0.9">${sub}</div>`;
+    head.appendChild(face);
+    head.appendChild(msg);
+    panel.appendChild(head);
+
+    // Rang de héros + barre de progression
+    const rankRow = document.createElement('div');
+    rankRow.style.cssText = 'margin-top:16px;';
+    const rankLabel = document.createElement('div');
+    rankLabel.style.cssText = 'display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-bottom:6px;';
+    const rankName = en ? rank.nameEn : rank.name;
+    let nextTxt = '';
+    let pct = 100;
+    if (!rank.isMax && rank.nextMin) {
+        pct = Math.max(0, Math.min(100, Math.round(((profile.totalScore - rank.min) / (rank.nextMin - rank.min)) * 100)));
+        const remaining = rank.nextMin - profile.totalScore;
+        nextTxt = en ? `${remaining} pts to next` : `${remaining} pts au suivant`;
+    } else {
+        nextTxt = en ? 'Max rank!' : 'Rang max !';
+    }
+    rankLabel.innerHTML = `<span>${rank.emoji} ${rankName}</span><span style="opacity:0.85">${nextTxt}</span>`;
+    rankRow.appendChild(rankLabel);
+    const barBg = document.createElement('div');
+    barBg.style.cssText = 'height:12px;background:rgba(255,255,255,0.25);border-radius:8px;overflow:hidden;';
+    const barFill = document.createElement('div');
+    barFill.style.cssText = `height:100%;width:${pct}%;background:#fcd34d;border-radius:8px;transition:width 0.6s;`;
+    barBg.appendChild(barFill);
+    rankRow.appendChild(barBg);
+    panel.appendChild(rankRow);
+
+    // Stats : série de jours + niveaux réussis
+    const stats = document.createElement('div');
+    stats.style.cssText = 'display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;';
+    const chip = (txt) => {
+        const c = document.createElement('span');
+        c.style.cssText = 'background:rgba(255,255,255,0.2);border-radius:12px;padding:6px 12px;font-size:14px;font-weight:700;';
+        c.textContent = txt;
+        return c;
+    };
+    stats.appendChild(chip(`🔥 ${streak} ${en ? (streak > 1 ? 'days' : 'day') : (streak > 1 ? 'jours' : 'jour')}`));
+    stats.appendChild(chip(`⭐ ${profile.totalScore}`));
+    stats.appendChild(chip(`🎯 ${completedCount}`));
+    panel.appendChild(stats);
+
+    // Badges gagnés
+    if (badges.length) {
+        const badgeRow = document.createElement('div');
+        badgeRow.style.cssText = 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;';
+        badges.forEach(b => {
+            const bd = document.createElement('span');
+            bd.title = en ? b.nameEn : b.nameFr;
+            bd.textContent = b.emoji;
+            bd.style.cssText = 'font-size:24px;background:rgba(255,255,255,0.18);border-radius:12px;width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;';
+            badgeRow.appendChild(bd);
+        });
+        panel.appendChild(badgeRow);
+    }
+
+    // Bouton « Continuer / Rejouer »
+    const cta = document.createElement('button');
+    cta.style.cssText = 'margin-top:18px;width:100%;background:#fff;color:#4f46e5;border:none;border-radius:16px;padding:14px;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,0.15);';
+    if (nextLevel) {
+        cta.textContent = en ? `▶ Continue (Level ${nextLevel.id})` : `▶ Continuer (Niveau ${nextLevel.id})`;
+        cta.onclick = () => launchLevel(nextLevel.id);
+    } else {
+        const firstLevel = data.levels[0];
+        cta.textContent = en ? '🔁 Play again' : '🔁 Rejouer';
+        cta.onclick = () => firstLevel && launchLevel(firstLevel.id);
+    }
+    panel.appendChild(cta);
+
+    return panel;
+}
+
 /* ===== TABLEAU DE BORD (CARTE PAR CYCLES DU PRIMAIRE) ===== */
 
 function showDashboard() {
@@ -163,6 +266,13 @@ function showDashboard() {
     const unlockedLevels = lang === 'en'
         ? (profile.unlockedLevelsEn || [1])
         : (profile.unlockedLevelsFr || [1]);
+
+    // Panneau "tuteur" en haut du tableau de bord : mascotte, rang de héros,
+    // série de jours, badges et bouton « Continuer » (réduit la friction).
+    map.appendChild(buildTutorPanel(profile, lang, data, unlockedLevels));
+
+    // La mascotte accueille l'enfant par son prénom (une fois par session).
+    if (typeof TutorEngine !== 'undefined') TutorEngine.greet(profile);
 
     // Groupement visuel des niveaux par cycle d'apprentissage québécois
     const cyclesData = {};
