@@ -82,7 +82,13 @@ const ElevenLabsEngine = {
 
     playBase64(base64) {
         const audio = new Audio(base64);
-        audio.play().catch(e => console.log("Erreur audio:", e));
+        // On passe par le canal unique d'AudioEngine pour qu'une nouvelle voix
+        // coupe la précédente (sinon réponse + félicitation se chevauchent).
+        if (typeof AudioEngine !== 'undefined' && AudioEngine._playElement) {
+            AudioEngine._playElement(audio);
+        } else {
+            audio.play().catch(e => console.log("Erreur audio:", e));
+        }
     },
 
     clearAudioCache() {
@@ -267,6 +273,28 @@ const RecorderEngine = {
 const AudioEngine = {
     audioCache: {},
     isMuted: false,
+    // Canal vocal unique : une seule voix à la fois. Toute nouvelle lecture
+    // coupe la précédente, qu'elle vienne d'ElevenLabs, d'un phonème local
+    // ou de la synthèse système.
+    currentVoice: null,
+
+    // Stoppe la voix en cours (audio HTML + synthèse système).
+    stopVoice() {
+        if (this.currentVoice) {
+            try { this.currentVoice.pause(); this.currentVoice.currentTime = 0; } catch (e) {}
+            this.currentVoice = null;
+        }
+        if (window.speechSynthesis) {
+            try { window.speechSynthesis.cancel(); } catch (e) {}
+        }
+    },
+
+    // Joue un élément <audio> après avoir coupé la voix précédente.
+    _playElement(audio) {
+        this.stopVoice();
+        this.currentVoice = audio;
+        audio.play().catch(e => console.log("Erreur audio:", e));
+    },
 
     preload(sounds) {
         sounds.forEach(src => {
@@ -293,6 +321,8 @@ const AudioEngine = {
 
             audio.onerror = () => this.speakBest(textOrUrl, lang);
             audio.currentTime = 0;
+            this.stopVoice();
+            this.currentVoice = audio;
             audio.play().catch(() => this.speakBest(textOrUrl, lang));
         } else {
             this.speakBest(textOrUrl, lang);
@@ -311,6 +341,8 @@ const AudioEngine = {
         const synth = window.speechSynthesis;
         if (!synth) return;
 
+        // Coupe toute voix en cours (ElevenLabs/phonème) avant de parler.
+        this.stopVoice();
         if (synth.paused) synth.resume();
         synth.cancel();
 
