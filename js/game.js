@@ -171,6 +171,12 @@ const SpeechEngine = {
         }
     },
 
+    // La reconnaissance vocale (Web Speech API) n'existe pas sur iPad/Safari.
+    // On le détecte pour basculer sur l'enregistrement + auto-validation.
+    isSupported() {
+        return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    },
+
     evaluatePronunciation(spoken, target, lang) {
         const cleanText = (str) => {
             return str.toLowerCase()
@@ -215,6 +221,45 @@ const SpeechEngine = {
             }
         }
         return matrix[b.length][a.length];
+    }
+};
+
+// Enregistreur micro (fallback pour iPad/Safari sans reconnaissance vocale).
+// L'enfant s'enregistre, se réécoute, puis s'auto-valide. Tout reste local :
+// le Blob audio n'est jamais envoyé sur un serveur.
+const RecorderEngine = {
+    mediaRecorder: null,
+    chunks: [],
+    stream: null,
+    isRecording: false,
+
+    isSupported() {
+        return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    },
+
+    async start() {
+        this.chunks = [];
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.mediaRecorder = new MediaRecorder(this.stream);
+        this.mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) this.chunks.push(e.data);
+        };
+        this.mediaRecorder.start();
+        this.isRecording = true;
+    },
+
+    stop() {
+        return new Promise((resolve) => {
+            const mr = this.mediaRecorder;
+            if (!mr) { resolve(null); return; }
+            mr.onstop = () => {
+                this.isRecording = false;
+                if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+                const blob = new Blob(this.chunks, { type: mr.mimeType || 'audio/webm' });
+                resolve(URL.createObjectURL(blob));
+            };
+            try { mr.stop(); } catch (e) { this.isRecording = false; resolve(null); }
+        });
     }
 };
 
@@ -692,10 +737,18 @@ const GameEngine = {
         wordCard.style.cssText = 'font-size:46px;font-weight:700;background:#ffffff;padding:20px 40px;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,0.06);color:#1e293b;letter-spacing:1px;width:100%;text-align:center;border:2px solid #e2e8f0;';
         container.appendChild(wordCard);
 
+        // Mode reconnaissance (Chrome/Android) vs mode enregistrement (iPad/Safari)
+        const recordMode = !SpeechEngine.isSupported() && RecorderEngine.isSupported();
+        const en = this.currentLang === 'en';
+
         const subText = document.createElement('p');
         subText.id = 'speech-status';
-        subText.textContent = this.currentLang === 'en' ? 'Tap the mic and speak' : 'Appuie sur le micro et parle';
-        subText.style.cssText = 'font-size:16px;color:#64748b;margin:0;font-weight:600;';
+        if (recordMode) {
+            subText.textContent = en ? 'Tap the mic, read, tap to stop' : 'Appuie sur le micro, lis le mot, puis arrête';
+        } else {
+            subText.textContent = en ? 'Tap the mic and speak' : 'Appuie sur le micro et parle';
+        }
+        subText.style.cssText = 'font-size:16px;color:#64748b;margin:0;font-weight:600;text-align:center;';
         container.appendChild(subText);
 
         const micBtn = document.createElement('button');
@@ -728,7 +781,11 @@ const GameEngine = {
 
         micBtn.onclick = () => {
             if (this.isProcessing) return;
-            this.toggleSpeechListening(item, micBtn, subText);
+            if (recordMode) {
+                this.toggleRecording(item, micBtn, subText, container);
+            } else {
+                this.toggleSpeechListening(item, micBtn, subText);
+            }
         };
 
         container.appendChild(micBtn);
@@ -822,6 +879,136 @@ const GameEngine = {
         }
 
         document.getElementById('current-score').textContent = this.score;
+    },
+
+    // ===== Mode enregistrement + auto-validation (iPad / Safari) =====
+    // Tap 1 : démarre l'enregistrement. Tap 2 : arrête, réécoute, et propose
+    // à l'enfant de s'auto-évaluer (✅ / 🔁).
+    toggleRecording(item, micBtn, subText, container) {
+        if (this.isProcessing) return;
+        const en = this.currentLang === 'en';
+
+        if (RecorderEngine.isRecording) {
+            micBtn.classList.remove('mic-active');
+            subText.style.color = '#64748b';
+            subText.textContent = en ? 'One moment…' : 'Un instant…';
+            RecorderEngine.stop().then((url) => this._afterRecording(url, item, micBtn, subText, container));
+            return;
+        }
+
+        RecorderEngine.start().then(() => {
+            // On retire un éventuel panneau d'auto-évaluation d'un essai précédent.
+            const old = document.getElementById('pronounce-assess');
+            if (old) old.remove();
+            micBtn.classList.add('mic-active');
+            subText.style.color = '#ef4444';
+            subText.textContent = en ? 'Recording… tap to stop' : "J'enregistre… appuie pour arrêter";
+        }).catch(() => {
+            micBtn.classList.remove('mic-active');
+            subText.style.color = '#ef4444';
+            subText.textContent = en ? '🎙️ Allow the microphone in Settings' : '🎙️ Autorise le micro dans les réglages';
+            setTimeout(() => {
+                subText.style.color = '#64748b';
+                subText.textContent = en ? 'Tap the mic, read, tap to stop' : 'Appuie sur le micro, lis le mot, puis arrête';
+            }, 3000);
+        });
+    },
+
+    _afterRecording(url, item, micBtn, subText, container) {
+        const en = this.currentLang === 'en';
+
+        if (!url) {
+            subText.style.color = '#ef4444';
+            subText.textContent = en ? "Hmm, that didn't record. Try again!" : "Hmm, ça n'a pas marché. Réessaie !";
+            setTimeout(() => {
+                subText.style.color = '#64748b';
+                subText.textContent = en ? 'Tap the mic, read, tap to stop' : 'Appuie sur le micro, lis le mot, puis arrête';
+            }, 2500);
+            return;
+        }
+
+        subText.style.color = '#475569';
+        subText.textContent = en ? 'Listen to yourself 👂' : 'Réécoute-toi 👂';
+
+        const myVoice = new Audio(url);
+        myVoice.play().catch(() => {});
+
+        const assess = document.createElement('div');
+        assess.id = 'pronounce-assess';
+        assess.style.cssText = 'display:flex;flex-direction:column;gap:12px;width:100%;align-items:center;';
+
+        // Ligne de réécoute : ma voix vs le modèle
+        const replayRow = document.createElement('div');
+        replayRow.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;justify-content:center;';
+
+        const replayMine = document.createElement('button');
+        replayMine.innerHTML = en ? '🔁 My voice' : '🔁 Ma voix';
+        replayMine.style.cssText = 'background:#eef2ff;color:#4338ca;border:none;border-radius:14px;padding:12px 18px;font-size:16px;font-weight:700;cursor:pointer;';
+        replayMine.onclick = () => { myVoice.currentTime = 0; myVoice.play().catch(() => {}); };
+
+        const replayModel = document.createElement('button');
+        replayModel.innerHTML = en ? '🔊 Model' : '🔊 Modèle';
+        replayModel.style.cssText = 'background:#eef2ff;color:#4338ca;border:none;border-radius:14px;padding:12px 18px;font-size:16px;font-weight:700;cursor:pointer;';
+        replayModel.onclick = () => AudioEngine.play(item.word || item.target, false, this.currentLang);
+
+        replayRow.appendChild(replayMine);
+        replayRow.appendChild(replayModel);
+
+        // Ligne d'auto-évaluation : bien lu / réessayer
+        const verdictRow = document.createElement('div');
+        verdictRow.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;justify-content:center;';
+
+        const okBtn = document.createElement('button');
+        okBtn.innerHTML = en ? '✅ I said it well!' : '✅ Bien lu !';
+        okBtn.style.cssText = 'background:#10b981;color:white;border:none;border-radius:16px;padding:14px 22px;font-size:17px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px rgba(16,185,129,0.3);';
+        okBtn.onclick = () => {
+            URL.revokeObjectURL(url);
+            this._pronounceSelfSuccess(micBtn, subText);
+        };
+
+        const retryBtn = document.createElement('button');
+        retryBtn.innerHTML = en ? '🔁 Try again' : '🔁 Réessayer';
+        retryBtn.style.cssText = 'background:#fff;color:#ef4444;border:2px solid #fecaca;border-radius:16px;padding:14px 22px;font-size:17px;font-weight:800;cursor:pointer;';
+        retryBtn.onclick = () => {
+            URL.revokeObjectURL(url);
+            assess.remove();
+            subText.style.color = '#64748b';
+            subText.textContent = en ? 'Tap the mic, read, tap to stop' : 'Appuie sur le micro, lis le mot, puis arrête';
+        };
+
+        verdictRow.appendChild(okBtn);
+        verdictRow.appendChild(retryBtn);
+
+        assess.appendChild(replayRow);
+        assess.appendChild(verdictRow);
+        container.appendChild(assess);
+    },
+
+    _pronounceSelfSuccess(micBtn, subText) {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
+
+        const assess = document.getElementById('pronounce-assess');
+        if (assess) assess.remove();
+
+        AudioEngine.vibrate('correct');
+        subText.style.color = '#10b981';
+        subText.textContent = this.currentLang === 'en' ? 'Great reading!' : 'Bravo, belle lecture !';
+
+        if (!this.itemHasError) this.correctFirstTry++;
+        this.streak++;
+        this.score += 15 + (this.streak * 2);
+        this.showFeedback('🎉');
+
+        setTimeout(() => {
+            this.praiseVoice();
+            this.createParticles(micBtn);
+        }, 300);
+
+        const total = this.currentLevel.items.length;
+        document.getElementById('game-progress-fill').style.width = `${((this.currentItemIndex + 1) / total) * 100}%`;
+        document.getElementById('current-score').textContent = this.score;
+        setTimeout(() => this.nextItem(), 1800);
     },
 
     /* ===== JEU 5 : LA DICTÉE ===== */
