@@ -105,6 +105,7 @@ const TutorEngine = {
     },
 
     say(text, lang) {
+        if (!text) return;
         this.show(text);
         this._voice(text, lang);
     },
@@ -209,9 +210,27 @@ const TutorEngine = {
         else this.openPanel();
     },
 
+    // Stoppe toute reconnaissance vocale en cours (libère le micro matériel et
+    // remet l'état au propre).
+    _stopVoiceInput() {
+        if (this._rec) { try { this._rec.stop(); } catch (e) {} }
+        this._recognizing = false;
+        const mic = document.getElementById('tutor-mic');
+        if (mic) mic.classList.remove('listening');
+    },
+
     closePanel() {
+        this._stopVoiceInput();
         const p = document.getElementById('tutor-panel');
         if (p) p.classList.remove('show');
+    },
+
+    // Détruit le panneau de chat pour repartir propre (changement de profil) :
+    // l'historique affiché et le message d'accueil sont réinitialisés.
+    resetChatPanel() {
+        this._stopVoiceInput();
+        const p = document.getElementById('tutor-panel');
+        if (p) p.remove();
     },
 
     _buildPanel() {
@@ -263,6 +282,10 @@ const TutorEngine = {
         const chat = p.querySelector('#tutor-chat');
         const aiOn = (typeof AITutor !== 'undefined') && AITutor.isEnabled();
 
+        // Chat libre : activable/désactivable par le parent. Si coupé, l'enfant
+        // garde « Aide-moi » et les encouragements, mais pas la saisie libre.
+        const freeChat = aiOn && (typeof AITutor === 'undefined' || AITutor.isFreeChatAllowed());
+
         // Premier affichage : message d'accueil ou note « non activé ».
         if (!chat.dataset.greeted) {
             chat.dataset.greeted = '1';
@@ -274,12 +297,38 @@ const TutorEngine = {
                     : "🔒 Le cerveau IA de Léo est éteint. Un parent peut l'activer dans l'espace parents.");
             }
         }
-        const disabled = !aiOn;
-        p.querySelector('#tutor-send').disabled = disabled;
-        p.querySelector('#tutor-input').disabled = disabled;
-        p.querySelector('#tutor-hint-btn').disabled = disabled;
-        const mic = p.querySelector('#tutor-mic');
-        if (mic) mic.disabled = disabled;
+
+        this._refreshControls();
+    },
+
+    // Remet les commandes du panneau dans l'état correct selon les réglages
+    // (IA activée ? chat libre autorisé ?). Appelé à l'ouverture et après chaque
+    // appel IA.
+    _refreshControls() {
+        const p = document.getElementById('tutor-panel');
+        if (!p) return;
+        const aiOn = (typeof AITutor !== 'undefined') && AITutor.isEnabled();
+        const freeChat = aiOn && (typeof AITutor === 'undefined' || AITutor.isFreeChatAllowed());
+        const hint = p.querySelector('#tutor-hint-btn');
+        if (hint) hint.disabled = !aiOn;
+        const inputRow = p.querySelector('.tutor-input-row');
+        if (inputRow) inputRow.style.display = freeChat ? 'flex' : 'none';
+        const send = p.querySelector('#tutor-send'); if (send) send.disabled = !freeChat;
+        const input = p.querySelector('#tutor-input'); if (input) input.disabled = !freeChat;
+        const mic = p.querySelector('#tutor-mic'); if (mic) mic.disabled = !freeChat;
+    },
+
+    // Verrouille les commandes pendant un appel IA (évite double envoi et perte
+    // du texte vocal). À la fin on restaure l'état réel via _refreshControls.
+    _setBusyUI(busy) {
+        if (busy) {
+            this._stopVoiceInput();
+            ['tutor-send', 'tutor-hint-btn', 'tutor-mic'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.disabled = true;
+            });
+        } else {
+            this._refreshControls();
+        }
     },
 
     _speechSupported() {
@@ -345,6 +394,7 @@ const TutorEngine = {
         }
         const item = ge.currentLevel.items[ge.currentItemIndex];
         AITutor._busy = true;
+        this._setBusyUI(true);
         const bubble = this._thinking(en);
         try {
             const txt = await AITutor.hint(item, ge.currentGame, lang);
@@ -354,6 +404,7 @@ const TutorEngine = {
             bubble.textContent = en ? 'Oops, I can’t think right now. Try again!' : 'Oups, je réfléchis mal là. Réessaie !';
         } finally {
             AITutor._busy = false;
+            this._setBusyUI(false);
             const c = document.getElementById('tutor-chat'); if (c) c.scrollTop = c.scrollHeight;
         }
     },
@@ -368,6 +419,7 @@ const TutorEngine = {
         const en = lang === 'en';
         this._appendMsg('child', text);
         AITutor._busy = true;
+        this._setBusyUI(true);
         const bubble = this._thinking(en);
         try {
             const reply = await AITutor.chat(text, lang);
@@ -377,6 +429,7 @@ const TutorEngine = {
             bubble.textContent = en ? 'Oops, I can’t answer right now.' : 'Oups, je ne peux pas répondre là.';
         } finally {
             AITutor._busy = false;
+            this._setBusyUI(false);
             const c = document.getElementById('tutor-chat'); if (c) c.scrollTop = c.scrollHeight;
         }
     }

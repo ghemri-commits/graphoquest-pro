@@ -1705,6 +1705,21 @@ const GameEngine = {
     },
 
     /* ===== TRANSITIONS ET RÉSULTATS ===== */
+    // Extrait un libellé lisible d'un item de jeu (mot/réponse), sans dépendre
+    // de l'IA. Sert au suivi des mots ratés.
+    _itemLabel(item) {
+        if (!item) return '';
+        if (item.word) return item.word;
+        if (item.correct !== undefined && item.correct !== null) return item.correct;
+        if (item.target !== undefined && item.target !== null) {
+            if (typeof item.target === 'string') return item.target;
+            if (item.missing !== undefined && item.target[item.missing] !== undefined) return item.target[item.missing];
+        }
+        if (item.text) return item.text;
+        if (item.sentence) return item.sentence;
+        return '';
+    },
+
     nextItem() {
         const currentItem = this.currentLevel.items[this.currentItemIndex];
         if (this.itemHasError && currentItem) {

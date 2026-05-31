@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=8">
+    <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
     <div id="app">
@@ -232,9 +232,24 @@
                     <input type="password" id="openai-key" placeholder="Clé API OpenAI (sk-…)" style="width:100%; padding:12px; border-radius:12px; border:2px solid #cbd5e1; margin-bottom:6px;" onchange="setOpenAIKey(this.value)">
                     <p style="font-size:12px; color:#94a3b8; margin-bottom:14px;">Utilisée seulement si le champ Gemini est vide.</p>
 
-                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:24px;">
-                        <button class="btn-secondary" onclick="testTutorConnection()">🧪 Tester Léo</button>
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+                        <button class="btn-secondary" id="tutor-test-btn" onclick="testTutorConnection()">🧪 Tester Léo</button>
                         <span id="tutor-key-status" style="font-size:14px;font-weight:700;"></span>
+                    </div>
+
+                    <div style="background:#f1f5f9;border-radius:14px;padding:14px 16px;margin-bottom:16px;">
+                        <label style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:#334155;cursor:pointer;margin-bottom:12px;">
+                            <input type="checkbox" id="toggle-freechat" onchange="setFreeChat(this.checked)" style="width:20px;height:20px;">
+                            Autoriser le chat libre (l'enfant peut écrire/parler à Léo)
+                        </label>
+                        <label style="display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:#334155;cursor:pointer;">
+                            <input type="checkbox" id="toggle-personalize" onchange="setPersonalize(this.checked)" style="width:20px;height:20px;">
+                            Personnaliser avec le prénom de l'enfant
+                        </label>
+                    </div>
+
+                    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;padding:14px 16px;margin-bottom:24px;font-size:13px;color:#92400e;line-height:1.5;">
+                        🔐 <strong>Confidentialité.</strong> Quand le tuteur IA est activé, les messages et — si la personnalisation est activée — le <strong>prénom et l'âge</strong> de l'enfant sont envoyés à Google (Gemini) ou OpenAI pour générer les réponses. La voix dictée passe par les serveurs de reconnaissance vocale du navigateur (Apple/Google). Les clés API sont stockées sur cet appareil uniquement. Désactivez le chat libre ou la personnalisation ci-dessus pour limiter ce qui est partagé. N'activez l'IA que si vous acceptez ces conditions.
                     </div>
 
                     <h3>Changer le code PIN</h3>
@@ -259,15 +274,15 @@
     <!-- Firebase SDK (compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script src="js/firebase-init.js"></script>
+    <script src="js/firebase-init.js?v=9"></script>
 
-    <script src="js/words_meq.js?v=8"></script>
-    <script src="js/data.js?v=8"></script>
-    <script src="js/profiles.js?v=8"></script>
-    <script src="js/ai.js?v=8"></script>
-    <script src="js/tutor.js?v=8"></script>
-    <script src="js/game.js?v=8"></script>
-    <script src="js/parent.js?v=8"></script>
-    <script src="js/app.js?v=8"></script>
+    <script src="js/words_meq.js?v=9"></script>
+    <script src="js/data.js?v=9"></script>
+    <script src="js/profiles.js?v=9"></script>
+    <script src="js/ai.js?v=9"></script>
+    <script src="js/tutor.js?v=9"></script>
+    <script src="js/game.js?v=9"></script>
+    <script src="js/parent.js?v=9"></script>
+    <script src="js/app.js?v=9"></script>
 </body>
 </html>

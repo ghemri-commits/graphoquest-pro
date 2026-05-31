@@ -3,14 +3,19 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
 }
 
-// Générateur d'identifiant unique d'appareil si non-géré par l'iPad
+// Générateur d'identifiant unique d'appareil si non-géré par l'iPad.
+// Protégé contre un localStorage indisponible (navigation privée stricte).
 function getDeviceId() {
-    let id = localStorage.getItem('gq_device_id');
-    if (!id) {
-        id = 'ipad_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
-        localStorage.setItem('gq_device_id', id);
+    try {
+        let id = localStorage.getItem('gq_device_id');
+        if (!id) {
+            id = 'ipad_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+            localStorage.setItem('gq_device_id', id);
+        }
+        return id;
+    } catch (e) {
+        return 'ipad_temp_' + Date.now().toString(36);
     }
-    return id;
 }
 
 window.onload = () => {
@@ -34,6 +39,7 @@ window.onload = () => {
         const oai = document.getElementById('openai-key');
         if (oai) oai.value = AITutor.getOpenAIKey();
         if (typeof refreshTutorKeyStatus === 'function') refreshTutorKeyStatus();
+        if (typeof syncTutorToggles === 'function') syncTutorToggles();
     }
 
     setTimeout(() => {

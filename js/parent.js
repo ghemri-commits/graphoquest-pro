@@ -440,6 +440,24 @@ function refreshTutorKeyStatus() {
     }
 }
 
+// Interrupteurs parentaux (chat libre, personnalisation par prénom).
+function setFreeChat(on) {
+    if (typeof AITutor !== 'undefined') AITutor.setFreeChatAllowed(on);
+}
+
+function setPersonalize(on) {
+    if (typeof AITutor !== 'undefined') AITutor.setPersonalizeAllowed(on);
+}
+
+// Reflète l'état des réglages dans les cases à cocher (appelé au chargement).
+function syncTutorToggles() {
+    if (typeof AITutor === 'undefined') return;
+    const fc = document.getElementById('toggle-freechat');
+    if (fc) fc.checked = AITutor.isFreeChatAllowed();
+    const pz = document.getElementById('toggle-personalize');
+    if (pz) pz.checked = AITutor.isPersonalizeAllowed();
+}
+
 function testTutorConnection() {
     const el = document.getElementById('tutor-key-status');
     if (!el || typeof AITutor === 'undefined') return;
@@ -450,6 +468,8 @@ function testTutorConnection() {
     }
     el.textContent = '⏳ Test en cours…';
     el.style.color = '#64748b';
+    const btn = document.getElementById('tutor-test-btn');
+    if (btn) btn.disabled = true;
     const prof = (typeof ProfileManager !== 'undefined') ? ProfileManager.getCurrent() : null;
     const lang = (prof && prof.lang === 'en') ? 'en' : 'fr';
     AITutor.testConnection(lang)
@@ -460,7 +480,8 @@ function testTutorConnection() {
         .catch(err => {
             el.textContent = '❌ Échec : vérifie la clé (' + (err && err.message ? err.message : 'erreur') + ')';
             el.style.color = '#ef4444';
-        });
+        })
+        .finally(() => { if (btn) btn.disabled = false; });
 }
 
 /* ===== PARAMÈTRES ===== */
@@ -487,7 +508,14 @@ function resetAllData() {
 }
 
 function confirmReset() {
-    try { localStorage.clear(); } catch(e) {}
+    // On efface les données de l'app mais on PRÉSERVE l'identifiant d'appareil,
+    // sinon la synchronisation cloud repartirait de zéro et laisserait les
+    // profils orphelins dans Firestore.
+    try {
+        const deviceId = localStorage.getItem('gq_device_id');
+        localStorage.clear();
+        if (deviceId) localStorage.setItem('gq_device_id', deviceId);
+    } catch (e) {}
     location.reload();
 }
 
