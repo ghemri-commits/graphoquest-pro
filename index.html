@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=7">
+    <link rel="stylesheet" href="css/style.css?v=8">
 </head>
 <body>
     <div id="app">
@@ -213,7 +213,13 @@
                 <div id="tab-settings" class="tab-content">
                     <h3>🎙️ Clé ElevenLabs API (Optionnelle)</h3>
                     <input type="password" id="elevenlabs-key" placeholder="Entrez votre clé API ElevenLabs" style="width:100%; padding:12px; border-radius:12px; border:2px solid #cbd5e1; margin-bottom:8px;" onchange="ElevenLabsEngine.setApiKey(this.value)">
-                    <p style="font-size:13px; color:#64748b; margin-bottom:24px;">Si laissé vide, l'iPad utilisera automatiquement sa propre voix de synthèse vocale québécoise (sans frais).</p>
+                    <p style="font-size:13px; color:#64748b; margin-bottom:12px;">Si laissé vide, l'iPad utilisera automatiquement sa propre voix de synthèse vocale québécoise (sans frais).</p>
+
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:24px;">
+                        <button class="btn-secondary" onclick="testLeoVoice('fr')">🔊 Écouter Léo (FR)</button>
+                        <button class="btn-secondary" onclick="testLeoVoice('en')">🔊 Listen to Léo (EN)</button>
+                        <span id="leo-voice-status" style="font-size:14px;font-weight:700;"></span>
+                    </div>
 
                     <h3 style="margin-top:30px">🦊 Tuteur IA « Léo » (Optionnel)</h3>
                     <p style="font-size:13px; color:#64748b; margin-bottom:12px;">Ajoutez UNE clé pour transformer Léo en vrai tuteur : indices « Aide-moi », chat, encouragements personnalisés et bilans de fin de niveau. Sans clé, Léo garde ses phrases de base.</p>
@@ -255,13 +261,13 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="js/firebase-init.js"></script>
 
-    <script src="js/words_meq.js?v=7"></script>
-    <script src="js/data.js?v=7"></script>
-    <script src="js/profiles.js?v=7"></script>
-    <script src="js/ai.js?v=7"></script>
-    <script src="js/tutor.js?v=7"></script>
-    <script src="js/game.js?v=7"></script>
-    <script src="js/parent.js?v=7"></script>
-    <script src="js/app.js?v=7"></script>
+    <script src="js/words_meq.js?v=8"></script>
+    <script src="js/data.js?v=8"></script>
+    <script src="js/profiles.js?v=8"></script>
+    <script src="js/ai.js?v=8"></script>
+    <script src="js/tutor.js?v=8"></script>
+    <script src="js/game.js?v=8"></script>
+    <script src="js/parent.js?v=8"></script>
+    <script src="js/app.js?v=8"></script>
 </body>
 </html>

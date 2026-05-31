@@ -392,9 +392,6 @@ function renderLevelManager() {
 
 /* ===== PARAMÈTRES — Tuteur IA « Léo » ===== */
 function setGeminiKey(value) {
-    if (typeof AITutor !== 'undefined') AITutor.setGeminiKey(value);
-    refreshTutorKeyStatus();
-}
 
 function setOpenAIKey(value) {
     if (typeof AITutor !== 'undefined') AITutor.setOpenAIKey(value);
