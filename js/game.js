@@ -307,7 +307,7 @@ const AudioEngine = {
         });
     },
 
-    play(textOrUrl, isPhoneme = false, lang = 'fr') {
+    play(textOrUrl, isPhoneme = false, lang = 'fr', voiceId = null) {
         if (this.isMuted) return;
 
         if (isPhoneme) {
@@ -320,13 +320,13 @@ const AudioEngine = {
                 this.audioCache[url] = audio;
             }
 
-            audio.onerror = () => this.speakBest(textOrUrl, lang);
+            audio.onerror = () => this.speakBest(textOrUrl, lang, voiceId);
             audio.currentTime = 0;
             this.stopVoice();
             this.currentVoice = audio;
-            audio.play().catch(() => this.speakBest(textOrUrl, lang));
+            audio.play().catch(() => this.speakBest(textOrUrl, lang, voiceId));
         } else {
-            this.speakBest(textOrUrl, lang);
+            this.speakBest(textOrUrl, lang, voiceId);
         }
     },
 
