@@ -25,16 +25,18 @@ const ElevenLabsEngine = {
         });
     },
 
-    async speak(text, lang) {
+    async speak(text, lang, voiceId = null) {
         const apiKey = this.getApiKey();
         if (!apiKey) {
             throw new Error("Pas de clé API");
         }
 
         const langCode = lang === 'en' ? 'en' : 'fr';
+        const useVoice = voiceId || this.getVoiceId(lang);
         // Cache versionné (v3 = nouvelle voix FR) : les anciennes entrées mal
-        // prononcées ne sont plus réutilisées.
-        const cacheKey = `gq_tts3_${langCode}_${btoa(encodeURIComponent(text.toLowerCase()))}`;
+        // prononcées ne sont plus réutilisées. La voix fait partie de la clé
+        // pour ne pas mélanger la voix de Léo et la voix par défaut.
+        const cacheKey = `gq_tts3_${langCode}_${useVoice}_${btoa(encodeURIComponent(text.toLowerCase()))}`;
         const cachedAudio = localStorage.getItem(cacheKey);
 
         if (cachedAudio) {
@@ -42,8 +44,7 @@ const ElevenLabsEngine = {
             return true;
         }
 
-        const voiceId = this.getVoiceId(lang);
-        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${useVoice}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -329,9 +330,9 @@ const AudioEngine = {
         }
     },
 
-    async speakBest(text, lang) {
+    async speakBest(text, lang, voiceId = null) {
         try {
-            await ElevenLabsEngine.speak(text, lang);
+            await ElevenLabsEngine.speak(text, lang, voiceId);
         } catch (e) {
             this.speakTTS(text, lang);
         }
