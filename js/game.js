@@ -1725,10 +1725,11 @@ const GameEngine = {
         if (this.itemHasError && currentItem) {
             this.errorItems.push(currentItem);
             // Mémorise les mots ratés (jamais effacé par les rondes de révision)
-            // pour le bilan parlé de fin de niveau.
-            if (typeof AITutor !== 'undefined') {
-                const label = AITutor._itemLabel(currentItem);
-                if (label && this.missedWords.indexOf(label) === -1) this.missedWords.push(label);
+            // pour le bilan parlé de fin de niveau. Indépendant de l'IA grâce au
+            // repli local _itemLabel.
+            const label = this._itemLabel(currentItem);
+            if (label && this.missedWords && this.missedWords.indexOf(label) === -1) {
+                this.missedWords.push(label);
             }
         }
 

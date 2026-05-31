@@ -158,11 +158,24 @@ function saveProfile() {
 
 function selectProfile(id) {
     ProfileManager.setCurrent(id);
+    // Nouvelle session enfant : Léo doit resaluer et oublier la conversation
+    // précédente (sinon le 2e enfant hérite du chat du 1er et n'est pas salué).
+    if (typeof AITutor !== 'undefined') AITutor.resetSession();
+    if (typeof TutorEngine !== 'undefined') {
+        TutorEngine.greetedThisSession = false;
+        TutorEngine.resetChatPanel();
+    }
     showDashboard();
 }
 
 function logout() {
     ProfileManager.clearCurrent();
+    if (typeof AITutor !== 'undefined') AITutor.resetSession();
+    if (typeof TutorEngine !== 'undefined') {
+        TutorEngine.greetedThisSession = false;
+        TutorEngine.hideButton();
+        TutorEngine.resetChatPanel();
+    }
     showScreen('profile-screen');
     renderProfiles();
 }
