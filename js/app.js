@@ -565,6 +565,12 @@ function showParentLogin() {
     updatePinDisplay();
     document.getElementById('parent-login').classList.remove('hidden');
     document.getElementById('parent-dashboard').classList.add('hidden');
+    // Reflète l'état du verrouillage anti-force brute à l'ouverture.
+    if (typeof ParentPortal !== 'undefined' && ParentPortal.isLocked()) {
+        if (typeof showPinLock === 'function') showPinLock();
+    } else if (typeof setPinMessage === 'function') {
+        setPinMessage('Code par défaut : 1234');
+    }
     showScreen('parent-screen');
 }
 

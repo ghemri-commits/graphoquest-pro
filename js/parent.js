@@ -8,6 +8,13 @@ function safeHtml(str) {
 const ParentPortal = {
     PIN_KEY: 'gq_parent_pin',
     DEFAULT_PIN: '1234',
+    // Anti-force brute : après 5 essais ratés, verrouillage temporisé. Les
+    // compteurs sont en localStorage pour survivre à un rechargement (sinon un
+    // enfant pourrait simplement recharger la page pour réessayer).
+    ATTEMPTS_KEY: 'gq_pin_attempts',
+    LOCK_KEY: 'gq_pin_lock_until',
+    MAX_ATTEMPTS: 5,
+    LOCK_MS: 60000, // 1 minute
 
     getPin() {
         try { return localStorage.getItem(this.PIN_KEY) || this.DEFAULT_PIN; } catch(e) { return this.DEFAULT_PIN; }
@@ -20,7 +27,47 @@ const ParentPortal = {
         return false;
     },
 
+    // Le PIN est-il encore le code public par défaut ? (invite au changement)
+    isDefaultPin() { return this.getPin() === this.DEFAULT_PIN; },
+
     checkPin(input) { return input === this.getPin(); },
+
+    // Secondes restantes de verrouillage (0 si déverrouillé).
+    lockRemaining() {
+        try {
+            const until = parseInt(localStorage.getItem(this.LOCK_KEY) || '0', 10);
+            const rem = until - Date.now();
+            return rem > 0 ? Math.ceil(rem / 1000) : 0;
+        } catch (e) { return 0; }
+    },
+    isLocked() { return this.lockRemaining() > 0; },
+
+    _getAttempts() {
+        try { return parseInt(localStorage.getItem(this.ATTEMPTS_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+    },
+
+    // Enregistre un échec ; renvoie le nombre d'essais restants avant blocage
+    // (0 = on vient de déclencher le verrouillage).
+    recordFail() {
+        let n = this._getAttempts() + 1;
+        try {
+            localStorage.setItem(this.ATTEMPTS_KEY, String(n));
+            if (n >= this.MAX_ATTEMPTS) {
+                localStorage.setItem(this.LOCK_KEY, String(Date.now() + this.LOCK_MS));
+                localStorage.setItem(this.ATTEMPTS_KEY, '0');
+                return 0;
+            }
+        } catch (e) {}
+        return Math.max(0, this.MAX_ATTEMPTS - n);
+    },
+
+    // Réinitialise les compteurs après un succès.
+    recordSuccess() {
+        try {
+            localStorage.removeItem(this.ATTEMPTS_KEY);
+            localStorage.removeItem(this.LOCK_KEY);
+        } catch (e) {}
+    },
 
     /* ===== HELPERS NIVEAUX (dynamiques selon les données réelles) ===== */
     _levelIdsForLang(lang) {
@@ -338,7 +385,11 @@ const ParentPortal = {
 /* ===== PIN ===== */
 let currentPin = '';
 
+let pinLockTimer = null;
+
 function enterPin(num) {
+    // Saisie bloquée pendant le verrouillage anti-force brute.
+    if (ParentPortal.isLocked()) { showPinLock(); return; }
     if (currentPin.length < 4) {
         currentPin += num;
         updatePinDisplay();
@@ -355,22 +406,62 @@ function clearPin() {
 
 function updatePinDisplay() {
     const display = document.getElementById('pin-display');
-    display.textContent = '●'.repeat(currentPin.length) + '•'.repeat(4 - currentPin.length);
+    if (display) display.textContent = '●'.repeat(currentPin.length) + '•'.repeat(4 - currentPin.length);
+}
+
+function setPinMessage(text, color) {
+    const el = document.getElementById('pin-hint');
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = color || '#94a3b8';
+}
+
+// Affiche (et entretient) le compte à rebours de verrouillage.
+function showPinLock() {
+    const rem = ParentPortal.lockRemaining();
+    if (rem <= 0) { clearInterval(pinLockTimer); pinLockTimer = null; setPinMessage('Code par défaut : 1234'); return; }
+    setPinMessage(`🔒 Trop d'essais. Réessaie dans ${rem} s.`, '#ef4444');
+    if (!pinLockTimer) {
+        pinLockTimer = setInterval(showPinLock, 1000);
+    }
 }
 
 function checkPin() {
+    if (ParentPortal.isLocked()) { clearPin(); showPinLock(); return; }
+
     if (ParentPortal.checkPin(currentPin)) {
+        ParentPortal.recordSuccess();
+        clearInterval(pinLockTimer); pinLockTimer = null;
         document.getElementById('parent-login').classList.add('hidden');
         document.getElementById('parent-dashboard').classList.remove('hidden');
+        // Invite à changer le PIN s'il est encore le code public par défaut.
+        maybeWarnDefaultPin();
         ParentPortal.renderProgress();
         ParentPortal.populateProfileSelect();
     } else {
+        const remaining = ParentPortal.recordFail();
         const display = document.getElementById('pin-display');
-        display.style.color = 'var(--danger)';
-        setTimeout(() => {
-            display.style.color = '';
-            clearPin();
-        }, 800);
+        if (display) {
+            display.style.color = 'var(--danger)';
+            setTimeout(() => { display.style.color = ''; clearPin(); }, 800);
+        }
+        if (remaining === 0) {
+            showPinLock();
+        } else {
+            setPinMessage(`❌ Code incorrect. ${remaining} essai${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}.`, '#ef4444');
+        }
+    }
+}
+
+// Si le PIN est resté « 1234 », on signale au parent (onglet Réglages) qu'il
+// devrait le changer.
+function maybeWarnDefaultPin() {
+    if (!ParentPortal.isDefaultPin()) return;
+    const msg = document.getElementById('pin-msg');
+    if (msg) {
+        msg.textContent = '⚠️ Vous utilisez encore le code par défaut « 1234 ». Changez-le ci-dessous pour protéger cet espace.';
+        msg.style.color = 'var(--danger)';
+        msg.classList.remove('hidden');
     }
 }
 
@@ -490,7 +581,10 @@ function changePin() {
     const msg = document.getElementById('pin-msg');
     const newPin = input.value.trim();
 
-    if (ParentPortal.setPin(newPin)) {
+    if (newPin === ParentPortal.DEFAULT_PIN) {
+        msg.textContent = '⚠️ Évitez le code par défaut « 1234 ». Choisissez un autre code.';
+        msg.style.color = 'var(--danger)';
+    } else if (ParentPortal.setPin(newPin)) {
         msg.textContent = '✅ Code PIN mis à jour !';
         msg.style.color = 'var(--success)';
         input.value = '';
