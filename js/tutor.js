@@ -6,6 +6,9 @@
 // ============================================================
 const TutorEngine = {
     mascot: '🦊',
+    // Voix ElevenLabs dédiée à Léo (utilisée si une clé ElevenLabs est
+    // configurée ; sinon la voix de synthèse du navigateur prend le relais).
+    voiceId: 'NW7MRm1Ibz4gwivTc7oV',
     greetedThisSession: false,
     _hideTimer: null,
 
@@ -21,6 +24,27 @@ const TutorEngine = {
         const dyn = this._dyn[l] && this._dyn[l][kind];
         if (dyn && dyn.length) return dyn;
         return kind === 'praise' ? this.PRAISE[l] : this.ENCOURAGE[l];
+    },
+
+    // Formules de politesse/accueil variées (anti-répétition) quand Léo ouvre
+    // le panneau de chat ou salue en début de session.
+    GREETINGS: {
+        fr: [
+            'Bonjour ! Touche « Aide-moi » ou pose-moi ta question 🦊',
+            'Coucou ! Je suis là pour t’aider. Que veux-tu savoir ? 😊',
+            'Salut, mon ami ! Besoin d’un petit coup de pouce ? 🦊',
+            'Bonjour à toi ! Demande-moi tout ce que tu veux sur tes mots.',
+            'Hé, content de te voir ! On apprend ensemble ? ✨',
+            'Bienvenue ! Je peux te donner un indice quand tu veux 💡'
+        ],
+        en: [
+            'Hello! Tap “Help me” or ask me your question 🦊',
+            'Hi there! I’m here to help. What would you like to know? 😊',
+            'Hey, my friend! Need a little hint? 🦊',
+            'Good to see you! Ask me anything about your words.',
+            'Welcome! I can give you a clue whenever you like 💡',
+            'Hi! Let’s learn together, shall we? ✨'
+        ]
     },
 
     // Phrases tournantes pour ne jamais répéter le même mot deux fois de suite.
@@ -128,6 +152,7 @@ const TutorEngine = {
                 align-items:center;justify-content:center;transition:transform .2s;animation:tutorBob 1.6s ease-in-out infinite;}
             .tutor-fab.show{display:flex;}
             .tutor-fab:active{transform:scale(.92);}
+            @keyframes tutorBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
             .tutor-panel{position:fixed;right:18px;bottom:92px;width:min(360px,92vw);max-height:70vh;
                 background:#fff;border:2px solid #6366f1;border-radius:22px;box-shadow:0 18px 48px rgba(0,0,0,.25);
                 z-index:9999;display:none;flex-direction:column;overflow:hidden;}
@@ -148,7 +173,10 @@ const TutorEngine = {
             .tutor-input-row{display:flex;gap:8px;padding:12px 14px;align-items:center;}
             .tutor-input{flex:1;border:2px solid #cbd5e1;border-radius:14px;padding:12px;font-size:15px;font-weight:600;}
             .tutor-send{background:#6366f1;color:#fff;border:none;border-radius:14px;width:46px;height:46px;font-size:18px;cursor:pointer;}
-            .tutor-send:disabled{opacity:.5;cursor:default;}
+            .tutor-send:disabled,.tutor-mic:disabled{opacity:.5;cursor:default;}
+            .tutor-mic{background:#fff;border:2px solid #6366f1;border-radius:14px;width:46px;height:46px;font-size:20px;cursor:pointer;flex:0 0 auto;}
+            .tutor-mic.listening{background:#ef4444;border-color:#ef4444;animation:tutorPulse 1s ease-in-out infinite;}
+            @keyframes tutorPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5);}50%{box-shadow:0 0 0 8px rgba(239,68,68,0);}}
         `;
         document.head.appendChild(s);
     },
@@ -204,6 +232,7 @@ const TutorEngine = {
                 <button id="tutor-hint-btn" class="tutor-hint">💡 ${en ? 'Help me' : 'Aide-moi'}</button>
             </div>
             <div class="tutor-input-row">
+                <button id="tutor-mic" class="tutor-mic" aria-label="${en ? 'Speak' : 'Parler'}" title="${en ? 'Speak to Léo' : 'Parle à Léo'}">🎤</button>
                 <input id="tutor-input" class="tutor-input" placeholder="${en ? 'Ask Léo…' : 'Pose ta question…'}" maxlength="200">
                 <button id="tutor-send" class="tutor-send" aria-label="Envoyer">➤</button>
             </div>
@@ -215,6 +244,14 @@ const TutorEngine = {
         p.querySelector('#tutor-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this._sendChat();
         });
+        // Saisie vocale : l'enfant peut parler au lieu d'écrire. Le bouton micro
+        // n'apparaît que si le navigateur supporte la reconnaissance vocale.
+        const mic = p.querySelector('#tutor-mic');
+        if (this._speechSupported()) {
+            mic.onclick = () => this._startVoiceInput();
+        } else {
+            mic.style.display = 'none';
+        }
         return p;
     },
 
@@ -230,8 +267,7 @@ const TutorEngine = {
         if (!chat.dataset.greeted) {
             chat.dataset.greeted = '1';
             if (aiOn) {
-                this._appendMsg('leo', en ? 'Hi! Tap “Help me”, or ask me anything about your words 🦊'
-                                          : 'Coucou ! Touche « Aide-moi », ou pose-moi une question sur tes mots 🦊');
+                this._appendMsg('leo', this._pick(this.GREETINGS[en ? 'en' : 'fr']));
             } else {
                 this._appendMsg('note', en
                     ? '🔒 Léo’s AI brain is off. A grown-up can turn it on in the Parents area.'
@@ -242,6 +278,45 @@ const TutorEngine = {
         p.querySelector('#tutor-send').disabled = disabled;
         p.querySelector('#tutor-input').disabled = disabled;
         p.querySelector('#tutor-hint-btn').disabled = disabled;
+        const mic = p.querySelector('#tutor-mic');
+        if (mic) mic.disabled = disabled;
+    },
+
+    _speechSupported() {
+        return typeof window !== 'undefined' &&
+            !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    },
+
+    // Saisie vocale du chat : on écoute l'enfant, on remplit le champ puis on
+    // envoie automatiquement la question à Léo.
+    _startVoiceInput() {
+        if (typeof AITutor === 'undefined' || !AITutor.isEnabled() || AITutor._busy) return;
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) return;
+        // Évite deux écoutes en parallèle.
+        if (this._recognizing) { try { this._rec.stop(); } catch (e) {} return; }
+
+        const lang = this._lang();
+        const mic = document.getElementById('tutor-mic');
+        const rec = new SR();
+        this._rec = rec;
+        rec.lang = lang === 'en' ? 'en-US' : 'fr-CA';
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+
+        rec.onstart = () => { this._recognizing = true; if (mic) mic.classList.add('listening'); };
+        const stop = () => { this._recognizing = false; if (mic) mic.classList.remove('listening'); };
+        rec.onerror = stop;
+        rec.onend = stop;
+        rec.onresult = (e) => {
+            const said = (e.results && e.results[0] && e.results[0][0] && e.results[0][0].transcript || '').trim();
+            if (said) {
+                const input = document.getElementById('tutor-input');
+                if (input) input.value = said;
+                this._sendChat();
+            }
+        };
+        try { rec.start(); } catch (e) { stop(); }
     },
 
     _appendMsg(role, text) {
