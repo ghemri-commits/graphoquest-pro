@@ -27,6 +27,15 @@ window.onload = () => {
     const keyField = document.getElementById('elevenlabs-key');
     if (keyField) keyField.value = key;
 
+    // Clés IA de Léo (tuteur virtuel) : Gemini et/ou OpenAI.
+    if (typeof AITutor !== 'undefined') {
+        const gem = document.getElementById('gemini-key');
+        if (gem) gem.value = AITutor.getGeminiKey();
+        const oai = document.getElementById('openai-key');
+        if (oai) oai.value = AITutor.getOpenAIKey();
+        if (typeof refreshTutorKeyStatus === 'function') refreshTutorKeyStatus();
+    }
+
     setTimeout(() => {
         ProfileManager.syncFromCloud(() => {
             showScreen('profile-screen');
@@ -526,6 +535,7 @@ function launchGame(gameType) {
 }
 
 function exitGame() {
+    if (typeof TutorEngine !== 'undefined') TutorEngine.hideButton();
     showDashboard();
 }
 

@@ -390,6 +390,53 @@ function renderLevelManager() {
     ParentPortal.renderLevelManager();
 }
 
+/* ===== PARAMÈTRES — Tuteur IA « Léo » ===== */
+function setGeminiKey(value) {
+    if (typeof AITutor !== 'undefined') AITutor.setGeminiKey(value);
+    refreshTutorKeyStatus();
+}
+
+function setOpenAIKey(value) {
+    if (typeof AITutor !== 'undefined') AITutor.setOpenAIKey(value);
+    refreshTutorKeyStatus();
+}
+
+function refreshTutorKeyStatus() {
+    const el = document.getElementById('tutor-key-status');
+    if (!el || typeof AITutor === 'undefined') return;
+    if (AITutor.isEnabled()) {
+        const prov = AITutor.provider() === 'gemini' ? 'Gemini' : 'OpenAI';
+        el.textContent = `✅ Léo IA activé (${prov})`;
+        el.style.color = '#10b981';
+    } else {
+        el.textContent = '○ Léo utilise ses phrases de base';
+        el.style.color = '#94a3b8';
+    }
+}
+
+function testTutorConnection() {
+    const el = document.getElementById('tutor-key-status');
+    if (!el || typeof AITutor === 'undefined') return;
+    if (!AITutor.isEnabled()) {
+        el.textContent = '⚠️ Ajoute d\'abord une clé API';
+        el.style.color = '#f59e0b';
+        return;
+    }
+    el.textContent = '⏳ Test en cours…';
+    el.style.color = '#64748b';
+    const prof = (typeof ProfileManager !== 'undefined') ? ProfileManager.getCurrent() : null;
+    const lang = (prof && prof.lang === 'en') ? 'en' : 'fr';
+    AITutor.testConnection(lang)
+        .then(txt => {
+            el.textContent = '✅ Léo répond : « ' + (txt || '...').slice(0, 80) + ' »';
+            el.style.color = '#10b981';
+        })
+        .catch(err => {
+            el.textContent = '❌ Échec : vérifie la clé (' + (err && err.message ? err.message : 'erreur') + ')';
+            el.style.color = '#ef4444';
+        });
+}
+
 /* ===== PARAMÈTRES ===== */
 function changePin() {
     const input = document.getElementById('new-pin');

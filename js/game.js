@@ -419,7 +419,17 @@ const GameEngine = {
         this.correctFirstTry = 0;
         this.itemHasError = false;
         this.errorItems = [];
+        this.missedWords = [];
         this.reviewRound = false;
+
+        // Léo (tuteur IA) : bouton flottant + pré-génération d'encouragements
+        // personnalisés pour ce niveau (non bloquant).
+        if (typeof TutorEngine !== 'undefined') TutorEngine.showButton();
+        if (typeof AITutor !== 'undefined') {
+            AITutor.resetSession();
+            AITutor.warmupEncouragements(this.currentLang);
+        }
+
         this.render();
     },
 
@@ -1698,6 +1708,12 @@ const GameEngine = {
         const currentItem = this.currentLevel.items[this.currentItemIndex];
         if (this.itemHasError && currentItem) {
             this.errorItems.push(currentItem);
+            // Mémorise les mots ratés (jamais effacé par les rondes de révision)
+            // pour le bilan parlé de fin de niveau.
+            if (typeof AITutor !== 'undefined') {
+                const label = AITutor._itemLabel(currentItem);
+                if (label && this.missedWords.indexOf(label) === -1) this.missedWords.push(label);
+            }
         }
 
         this.currentItemIndex++;
@@ -1797,12 +1813,22 @@ const GameEngine = {
             </div>
         `;
 
-        // La mascotte félicite l'enfant de vive voix (voix variée).
+        // La mascotte félicite l'enfant de vive voix. Si l'IA est activée, Léo
+        // fait un vrai bilan personnalisé (points forts + mots à retravailler) ;
+        // sinon, phrase fixe.
         if (typeof TutorEngine !== 'undefined') {
-            const line = stars === 3
+            const fixed = stars === 3
                 ? (en ? 'Perfect! You are a true champion!' : 'Parfait ! Tu es un vrai champion !')
                 : (en ? 'Well done, keep it up!' : 'Bien joué, continue comme ça !');
-            setTimeout(() => TutorEngine.say(line, this.currentLang), 700);
+            const lang = this.currentLang;
+            if (typeof AITutor !== 'undefined' && AITutor.isEnabled()) {
+                const stats = { correct, total, percent, stars, errorWords: this.missedWords || [] };
+                AITutor.levelSummary(stats, lang)
+                    .then(txt => setTimeout(() => TutorEngine.say(txt || fixed, lang), 600))
+                    .catch(() => setTimeout(() => TutorEngine.say(fixed, lang), 600));
+            } else {
+                setTimeout(() => TutorEngine.say(fixed, lang), 700);
+            }
         }
 
         this.createConfetti();

@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Andika:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=5">
+    <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
     <div id="app">
@@ -215,6 +215,22 @@
                     <input type="password" id="elevenlabs-key" placeholder="Entrez votre clé API ElevenLabs" style="width:100%; padding:12px; border-radius:12px; border:2px solid #cbd5e1; margin-bottom:8px;" onchange="ElevenLabsEngine.setApiKey(this.value)">
                     <p style="font-size:13px; color:#64748b; margin-bottom:24px;">Si laissé vide, l'iPad utilisera automatiquement sa propre voix de synthèse vocale québécoise (sans frais).</p>
 
+                    <h3 style="margin-top:30px">🦊 Tuteur IA « Léo » (Optionnel)</h3>
+                    <p style="font-size:13px; color:#64748b; margin-bottom:12px;">Ajoutez UNE clé pour transformer Léo en vrai tuteur : indices « Aide-moi », chat, encouragements personnalisés et bilans de fin de niveau. Sans clé, Léo garde ses phrases de base.</p>
+
+                    <label style="display:block;font-size:14px;font-weight:700;color:#475569;margin-bottom:6px;">Google Gemini <span style="font-weight:500;color:#94a3b8;">— niveau gratuit, recommandé</span></label>
+                    <input type="password" id="gemini-key" placeholder="Clé API Gemini" style="width:100%; padding:12px; border-radius:12px; border:2px solid #cbd5e1; margin-bottom:6px;" onchange="setGeminiKey(this.value)">
+                    <p style="font-size:12px; color:#94a3b8; margin-bottom:14px;">Obtenez une clé gratuite sur aistudio.google.com/apikey</p>
+
+                    <label style="display:block;font-size:14px;font-weight:700;color:#475569;margin-bottom:6px;">OpenAI <span style="font-weight:500;color:#94a3b8;">— GPT-4o-mini, payant</span></label>
+                    <input type="password" id="openai-key" placeholder="Clé API OpenAI (sk-…)" style="width:100%; padding:12px; border-radius:12px; border:2px solid #cbd5e1; margin-bottom:6px;" onchange="setOpenAIKey(this.value)">
+                    <p style="font-size:12px; color:#94a3b8; margin-bottom:14px;">Utilisée seulement si le champ Gemini est vide.</p>
+
+                    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:24px;">
+                        <button class="btn-secondary" onclick="testTutorConnection()">🧪 Tester Léo</button>
+                        <span id="tutor-key-status" style="font-size:14px;font-weight:700;"></span>
+                    </div>
+
                     <h3>Changer le code PIN</h3>
                     <input type="password" id="new-pin" placeholder="Nouveau PIN (4 chiffres)" maxlength="4">
                     <button class="btn-primary" onclick="changePin()">🔐 Enregistrer</button>
@@ -239,12 +255,13 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="js/firebase-init.js"></script>
 
-    <script src="js/words_meq.js?v=5"></script>
-    <script src="js/data.js?v=5"></script>
-    <script src="js/profiles.js?v=5"></script>
-    <script src="js/tutor.js?v=5"></script>
-    <script src="js/game.js?v=5"></script>
-    <script src="js/parent.js?v=5"></script>
-    <script src="js/app.js?v=5"></script>
+    <script src="js/words_meq.js?v=6"></script>
+    <script src="js/data.js?v=6"></script>
+    <script src="js/profiles.js?v=6"></script>
+    <script src="js/ai.js?v=6"></script>
+    <script src="js/tutor.js?v=6"></script>
+    <script src="js/game.js?v=6"></script>
+    <script src="js/parent.js?v=6"></script>
+    <script src="js/app.js?v=6"></script>
 </body>
 </html>
