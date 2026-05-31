@@ -391,7 +391,36 @@ function renderLevelManager() {
 }
 
 /* ===== PARAMÈTRES — Tuteur IA « Léo » ===== */
+
+// Aperçu de la voix de Léo (sans lancer un jeu). Utilise la voix dédiée de Léo
+// via TutorEngine ; si aucune clé ElevenLabs n'est saisie, la synthèse du
+// navigateur prend le relais.
+function testLeoVoice(lang) {
+    const el = document.getElementById('leo-voice-status');
+    const en = lang === 'en';
+    const sample = en
+        ? 'Hi! I am Léo, your reading buddy. Let us learn together!'
+        : 'Salut ! Je suis Léo, ton ami des mots. On apprend ensemble !';
+    if (el) {
+        if (typeof ElevenLabsEngine !== 'undefined' && ElevenLabsEngine.getApiKey()) {
+            el.textContent = '🔊 Voix ElevenLabs de Léo…';
+            el.style.color = '#10b981';
+        } else {
+            el.textContent = '🔊 Voix du navigateur (pas de clé ElevenLabs)';
+            el.style.color = '#94a3b8';
+        }
+    }
+    if (typeof TutorEngine !== 'undefined') {
+        TutorEngine.say(sample, en ? 'en' : 'fr');
+    } else if (typeof AudioEngine !== 'undefined') {
+        AudioEngine.play(sample, false, en ? 'en' : 'fr', 'NW7MRm1Ibz4gwivTc7oV');
+    }
+}
+
 function setGeminiKey(value) {
+    if (typeof AITutor !== 'undefined') AITutor.setGeminiKey(value);
+    refreshTutorKeyStatus();
+}
 
 function setOpenAIKey(value) {
     if (typeof AITutor !== 'undefined') AITutor.setOpenAIKey(value);
