@@ -100,7 +100,7 @@ const TutorEngine = {
 
     _voice(text, lang) {
         if (typeof AudioEngine !== 'undefined' && !AudioEngine.isMuted) {
-            AudioEngine.play(text, false, lang === 'en' ? 'en' : 'fr');
+            AudioEngine.play(text, false, lang === 'en' ? 'en' : 'fr', this.voiceId);
         }
     },
 
